@@ -1,6 +1,7 @@
 from sqlalchemy.orm import Session
 from sqlalchemy import desc, func
 
+from app.core.formatters import money
 from app.models.order import Order
 from app.models.cashback_record import CashbackRecord
 
@@ -14,8 +15,7 @@ def init_cashback_from_order(db: Session, order_id: int):
     if existing:
         return existing
 
-    # 一期简单规则：按实际佣金的 50% 作为预估返现金额
-    expected_cashback_amount = round((order.actual_cos_price or 0.0) * 0.5, 2)
+    expected_cashback_amount = money((order.actual_cos_price or 0.0) * 0.5)
 
     record = CashbackRecord(
         user_id=order.user_id,
@@ -26,6 +26,26 @@ def init_cashback_from_order(db: Session, order_id: int):
         remark="initialized from order",
     )
     db.add(record)
+    db.commit()
+    db.refresh(record)
+    return record
+
+
+def update_cashback_record(
+    db: Session,
+    record_id: int,
+    actual_cashback_amount: float,
+    status: str,
+    remark: str | None = None,
+):
+    record = db.query(CashbackRecord).filter(CashbackRecord.id == record_id).first()
+    if not record:
+        raise ValueError("Cashback record not found")
+
+    record.actual_cashback_amount = money(actual_cashback_amount)
+    record.status = status
+    record.remark = remark or ""
+
     db.commit()
     db.refresh(record)
     return record
@@ -62,14 +82,14 @@ def get_overview_report(db: Session):
         func.coalesce(func.sum(CashbackRecord.actual_cashback_amount), 0)
     ).scalar() or 0
 
-    net_income = round(float(total_actual_commission) - float(total_cashback_actual), 2)
+    net_income = money(float(total_actual_commission) - float(total_cashback_actual))
 
     return {
         "total_orders": int(total_orders),
-        "total_order_amount": float(total_order_amount),
-        "total_actual_commission": float(total_actual_commission),
-        "total_estimated_commission": float(total_estimated_commission),
-        "total_cashback_expected": float(total_cashback_expected),
-        "total_cashback_actual": float(total_cashback_actual),
+        "total_order_amount": money(total_order_amount),
+        "total_actual_commission": money(total_actual_commission),
+        "total_estimated_commission": money(total_estimated_commission),
+        "total_cashback_expected": money(total_cashback_expected),
+        "total_cashback_actual": money(total_cashback_actual),
         "net_income": net_income,
     }

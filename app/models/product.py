@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Float, DateTime, Text
+from sqlalchemy import Column, Integer, String, Float, DateTime, Text, Numeric
 from sqlalchemy.sql import func
 
 from app.core.db import Base
@@ -19,11 +19,11 @@ class Product(Base):
     category_name = Column(String(100), nullable=True)
     shop_name = Column(String(255), nullable=True)
 
-    price = Column(Float, default=0.0)
-    coupon_price = Column(Float, default=0.0)
+    price = Column(Numeric(12, 2), default=0.00)
+    coupon_price = Column(Numeric(12, 2), default=0.00)
 
     commission_rate = Column(Float, default=0.0)
-    estimated_commission = Column(Float, default=0.0)
+    estimated_commission = Column(Numeric(12, 2), default=0.00)
 
     sales_volume = Column(Integer, default=0)
 

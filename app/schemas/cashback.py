@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Optional
 from pydantic import BaseModel
 
 
@@ -9,7 +9,7 @@ class CashbackItem(BaseModel):
     expected_cashback_amount: float
     actual_cashback_amount: float
     status: str
-    remark: str | None = None
+    remark: Optional[str] = None
 
     model_config = {
         "from_attributes": True
@@ -29,3 +29,9 @@ class OverviewResponse(BaseModel):
     total_cashback_expected: float
     total_cashback_actual: float
     net_income: float
+
+
+class CashbackUpdateRequest(BaseModel):
+    actual_cashback_amount: float
+    status: str
+    remark: Optional[str] = None

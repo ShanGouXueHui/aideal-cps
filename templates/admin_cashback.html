@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8" />
+    <title>AIdeal CPS - 返现列表</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 24px; background: #f7f7f7; }
+        h1 { margin-bottom: 8px; }
+        .nav a { margin-right: 16px; }
+        .tip { background: #fffbe6; border: 1px solid #f0d58c; padding: 12px; border-radius: 8px; margin-top: 16px; }
+        table { width: 100%; border-collapse: collapse; background: white; margin-top: 20px; }
+        th, td { padding: 10px; border: 1px solid #ddd; text-align: left; }
+        th { background: #fafafa; }
+        code { background: #f3f3f3; padding: 2px 6px; border-radius: 4px; }
+    </style>
+</head>
+<body>
+    <h1>返现列表（共 {{ total }} 条）</h1>
+    <div class="nav">
+        <a href="/admin/overview">总览</a>
+        <a href="/admin/products">商品</a>
+        <a href="/admin/orders">订单</a>
+        <a href="/admin/cashback">返现</a>
+    </div>
+
+    <div class="tip">
+        更新返现状态接口：<br>
+        <code>POST /cashback/{record_id}/update</code><br>
+        Body 示例：<br>
+        <code>{"actual_cashback_amount": 55.00, "status": "paid", "remark": "wechat paid"}</code>
+    </div>
+
+    <table>
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>用户ID</th>
+                <th>订单ID</th>
+                <th>预估返现</th>
+                <th>实际返现</th>
+                <th>状态</th>
+                <th>备注</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for item in items %}
+            <tr>
+                <td>{{ item.id }}</td>
+                <td>{{ item.user_id }}</td>
+                <td>{{ item.order_id }}</td>
+                <td>{{ "%.2f"|format(money(item.expected_cashback_amount)) }}</td>
+                <td>{{ "%.2f"|format(money(item.actual_cashback_amount)) }}</td>
+                <td>{{ item.status }}</td>
+                <td>{{ item.remark }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</body>
+</html>

@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey
+from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Numeric
 from sqlalchemy.sql import func
 
 from app.core.db import Base
@@ -21,9 +21,9 @@ class Order(Base):
     sku_id = Column(String(64), nullable=True, index=True)
     sku_name = Column(String(255), nullable=True)
 
-    order_amount = Column(Float, default=0.0)
-    actual_cos_price = Column(Float, default=0.0)
-    estimate_cos_price = Column(Float, default=0.0)
+    order_amount = Column(Numeric(12, 2), default=0.00)
+    actual_cos_price = Column(Numeric(12, 2), default=0.00)
+    estimate_cos_price = Column(Numeric(12, 2), default=0.00)
 
     order_status = Column(String(50), default="pending")
     order_time = Column(DateTime(timezone=True), nullable=True)

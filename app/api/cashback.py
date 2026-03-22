@@ -2,11 +2,12 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.core.db import get_db
-from app.schemas.cashback import CashbackListResponse, OverviewResponse
+from app.schemas.cashback import CashbackListResponse, OverviewResponse, CashbackUpdateRequest
 from app.services.cashback_service import (
     init_cashback_from_order,
     list_cashback_records,
     get_overview_report,
+    update_cashback_record,
 )
 
 router = APIRouter(tags=["cashback"])
@@ -20,8 +21,35 @@ def create_cashback_from_order(order_id: int, db: Session = Depends(get_db)):
             "id": record.id,
             "user_id": record.user_id,
             "order_id": record.order_id,
-            "expected_cashback_amount": record.expected_cashback_amount,
-            "actual_cashback_amount": record.actual_cashback_amount,
+            "expected_cashback_amount": float(record.expected_cashback_amount),
+            "actual_cashback_amount": float(record.actual_cashback_amount),
+            "status": record.status,
+            "remark": record.remark,
+        }
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
+@router.post("/cashback/{record_id}/update")
+def update_cashback(
+    record_id: int,
+    payload: CashbackUpdateRequest,
+    db: Session = Depends(get_db),
+):
+    try:
+        record = update_cashback_record(
+            db=db,
+            record_id=record_id,
+            actual_cashback_amount=payload.actual_cashback_amount,
+            status=payload.status,
+            remark=payload.remark,
+        )
+        return {
+            "id": record.id,
+            "user_id": record.user_id,
+            "order_id": record.order_id,
+            "expected_cashback_amount": float(record.expected_cashback_amount),
+            "actual_cashback_amount": float(record.actual_cashback_amount),
             "status": record.status,
             "remark": record.remark,
         }
