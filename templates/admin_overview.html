@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8" />
+    <title>AIdeal CPS - 总览</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 24px; background: #f7f7f7; }
+        h1 { margin-bottom: 8px; }
+        .nav a { margin-right: 16px; }
+        .cards { display: grid; grid-template-columns: repeat(3, minmax(220px, 1fr)); gap: 16px; margin-top: 20px; }
+        .card { background: white; border: 1px solid #ddd; border-radius: 8px; padding: 16px; }
+        .label { color: #666; font-size: 14px; margin-bottom: 8px; }
+        .value { font-size: 24px; font-weight: bold; }
+        .sub { color: #999; font-size: 12px; margin-top: 6px; }
+    </style>
+</head>
+<body>
+    <h1>总览</h1>
+    <div class="nav">
+        <a href="/admin/overview">总览</a>
+        <a href="/admin/products">商品</a>
+        <a href="/admin/orders">订单</a>
+        <a href="/admin/cashback">返现</a>
+    </div>
+
+    <div class="cards">
+        <div class="card">
+            <div class="label">总订单金额</div>
+            <div class="value">{{ overview_wan.total_order_amount }}</div>
+            <div class="sub">万元</div>
+        </div>
+        <div class="card">
+            <div class="label">实际佣金</div>
+            <div class="value">{{ overview_wan.total_actual_commission }}</div>
+            <div class="sub">万元</div>
+        </div>
+        <div class="card">
+            <div class="label">预估佣金</div>
+            <div class="value">{{ overview_wan.total_estimated_commission }}</div>
+            <div class="sub">万元</div>
+        </div>
+        <div class="card">
+            <div class="label">预计返现</div>
+            <div class="value">{{ overview_wan.total_cashback_expected }}</div>
+            <div class="sub">万元</div>
+        </div>
+        <div class="card">
+            <div class="label">实际返现</div>
+            <div class="value">{{ overview_wan.total_cashback_actual }}</div>
+            <div class="sub">万元</div>
+        </div>
+        <div class="card">
+            <div class="label">净收入</div>
+            <div class="value">{{ overview_wan.net_income }}</div>
+            <div class="sub">万元</div>
+        </div>
+    </div>
+</body>
+</html>

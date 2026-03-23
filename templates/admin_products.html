@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8" />
+    <title>AIdeal CPS - 商品列表</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 24px; background: #f7f7f7; }
+        h1 { margin-bottom: 8px; }
+        .nav a { margin-right: 16px; }
+        table { width: 100%; border-collapse: collapse; background: white; margin-top: 20px; }
+        th, td { padding: 10px; border: 1px solid #ddd; text-align: left; }
+        th { background: #fafafa; }
+    </style>
+</head>
+<body>
+    <h1>商品列表（共 {{ total }} 条）</h1>
+    <div class="nav">
+        <a href="/admin/overview">总览</a>
+        <a href="/admin/products">商品</a>
+        <a href="/admin/orders">订单</a>
+        <a href="/admin/cashback">返现</a>
+    </div>
+
+    <table>
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>名称</th>
+                <th>价格</th>
+                <th>佣金率</th>
+                <th>月销量</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for item in items %}
+            <tr>
+                <td>{{ item.id }}</td>
+                <td>{{ item.name }}</td>
+                <td>{{ "%.2f"|format(money(item.price)) }}</td>
+                <td>{{ item.commission_rate }}</td>
+                <td>{{ item.monthly_sales }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</body>
+</html>

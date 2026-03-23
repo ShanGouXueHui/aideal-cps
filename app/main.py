@@ -7,6 +7,7 @@ from app.api.user import router as user_router
 from app.api.promotion import router as promotion_router
 from app.api.order import router as order_router
 from app.api.cashback import router as cashback_router
+from app.web.admin import router as admin_router
 
 app = FastAPI(title="AIdeal CPS", version="0.1.0")
 
@@ -17,6 +18,7 @@ app.include_router(user_router)
 app.include_router(promotion_router)
 app.include_router(order_router)
 app.include_router(cashback_router)
+app.include_router(admin_router)
 
 
 @app.get("/")
