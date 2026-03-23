@@ -15,13 +15,16 @@ class Settings(BaseSettings):
     QWEN_API_KEY: str = ""
     QWEN_MODEL: str = "qwen-plus"
 
-    # 一期：京东联盟导购媒体配置（主配置）
+    # 一期：京东联盟导购媒体配置
     JD_SITE_ID: str = ""
     JD_POSITION_ID: str = ""
 
-    # 二期：京东开放平台API配置（可选）
+    # 二期：京东开放平台API配置
     JD_APP_KEY: str = ""
     JD_APP_SECRET: str = ""
+
+    # 🔥 新增：京东API网关地址
+    JD_API_BASE: str = "https://api.jd.com/routerjson"
 
     SECRET_KEY: str = ""
 

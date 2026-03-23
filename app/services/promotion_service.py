@@ -11,19 +11,14 @@ def create_promotion_link(db: Session, user_id: int, product_id: int):
     if not user:
         raise ValueError("User not found")
 
-    product = db.query(Product).filter(Product.id == product_id, Product.status == "active").first()
+    product = db.query(Product).filter(
+        Product.id == product_id,
+        Product.status == "active"
+    ).first()
     if not product:
         raise ValueError("Product not found")
 
-    # 当前为一期占位实现：
-    # 基于京东联盟导购媒体(site_id + position_id)语义生成 mock 推广链接
-    promotion_url = (
-        f"https://u.jd.com/mock-promo?"
-        f"sku={product.jd_sku_id}"
-        f"&siteId={settings.JD_SITE_ID}"
-        f"&positionId={settings.JD_POSITION_ID}"
-        f"&subunionid={user.subunionid}"
-    )
+    promotion_url = product.product_url
 
     click_log = ClickLog(
         user_id=user.id,
@@ -37,7 +32,7 @@ def create_promotion_link(db: Session, user_id: int, product_id: int):
 
     return {
         "message": "media promotion link generated successfully",
-        "integration_mode": "jd_union_media",
+        "integration_mode": "jd_union_media_manual_redirect",
         "site_id": settings.JD_SITE_ID,
         "position_id": settings.JD_POSITION_ID,
         "user_id": user.id,
@@ -45,4 +40,7 @@ def create_promotion_link(db: Session, user_id: int, product_id: int):
         "subunionid": user.subunionid,
         "promotion_url": promotion_url,
         "click_log_id": click_log.id,
+        "is_mock": False,
+        "jd_error": None,
+        "jd_raw": None,
     }
