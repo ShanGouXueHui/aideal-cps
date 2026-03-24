@@ -11,9 +11,19 @@ def build_product_text(product, openid):
     link = f"{BASE_URL}/api/promotion/redirect?wechat_openid={openid}&product_id={product.id}"
     reason = generate_reason(product)
 
-    return f"""【{product.title}】
-券后价：{product.coupon_price}
-推荐理由：{reason}
+    image_part = ""
+    if product.image_url:
+        image_part = f"📷 商品图片：\n{product.image_url}\n\n"
+
+    coupon_price = product.coupon_price if product.coupon_price is not None else product.price
+
+    return f"""🛍 {product.title}
+
+{image_part}💰 券后价：{coupon_price}
+
+🔥 推荐理由：
+{reason}
+
 👉 点击购买：
 {link}"""
 
@@ -41,6 +51,16 @@ def route(msg):
 
     if to_user:
         get_or_create_user_by_openid(to_user)
+
+    if msg_type == "event":
+        event = (msg.get("Event") or "").lower()
+        if event == "subscribe":
+            return build_text_response(
+                to_user,
+                from_user,
+                "欢迎关注【智省优选】\n回复：手机 / 家电"
+            )
+        return ""
 
     if msg_type == "text":
         content = (msg.get("Content") or "").strip()
