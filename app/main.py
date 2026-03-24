@@ -1,3 +1,4 @@
+from app.api.wechat import router as wechat_router
 from fastapi import FastAPI
 
 from app.api.product import router as product_router
@@ -18,6 +19,7 @@ app.include_router(user_router)
 app.include_router(promotion_router)
 app.include_router(order_router)
 app.include_router(cashback_router)
+app.include_router(wechat_router, prefix="/api")
 app.include_router(admin_router)
 
 
