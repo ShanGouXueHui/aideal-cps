@@ -4,12 +4,13 @@ from app.core.config import settings
 from app.models.product import Product
 from app.models.click_log import ClickLog
 from app.models.user import User
+from app.services.jd_service import get_jd_promotion_link
 
 
 def _build_promotion_result(click_log, user, product, promotion_url):
     return {
-        "message": "media promotion link generated successfully",
-        "integration_mode": "jd_union_media_manual_redirect",
+        "message": "promotion link generated successfully",
+        "integration_mode": "jd_union_media_real_redirect",
         "site_id": settings.JD_SITE_ID,
         "position_id": settings.JD_POSITION_ID,
         "user_id": user.id,
@@ -35,7 +36,7 @@ def create_promotion_link(db: Session, user_id: int, product_id: int):
     if not product:
         raise ValueError("Product not found")
 
-    promotion_url = product.product_url
+    promotion_url = get_jd_promotion_link(product.product_url)
 
     click_log = ClickLog(
         user_id=user.id,
@@ -62,7 +63,7 @@ def create_promotion_link_by_openid(db: Session, wechat_openid: str, product_id:
     if not product:
         raise ValueError("Product not found")
 
-    promotion_url = product.product_url
+    promotion_url = get_jd_promotion_link(product.product_url)
 
     click_log = ClickLog(
         user_id=user.id,
