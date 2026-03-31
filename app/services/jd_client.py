@@ -1,154 +1,64 @@
 import hashlib
 import json
 from datetime import datetime
-from typing import Any, Dict, Optional
-from urllib.parse import urlencode
-
+from typing import Any, Dict
 import httpx
-
 from app.core.config import settings
 
 
-def _format_timestamp() -> str:
+def _format_timestamp():
     return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
 
-def _sign_jd_params(params: Dict[str, Any], app_secret: str) -> str:
-    """
-    京东风格签名：
-    1. 去掉 value 为 None 的参数
-    2. 按 key 字典序排序
-    3. app_secret + k1v1k2v2... + app_secret
-    4. MD5 大写
-    """
-    items = []
-    for key in sorted(params.keys()):
-        value = params[key]
-        if value is None:
-            continue
-        items.append(f"{key}{value}")
-
-    sign_string = f"{app_secret}{''.join(items)}{app_secret}"
-    return hashlib.md5(sign_string.encode("utf-8")).hexdigest().upper()
+def _sign(params, secret):
+    s = secret + "".join(f"{k}{params[k]}" for k in sorted(params)) + secret
+    return hashlib.md5(s.encode()).hexdigest().upper()
 
 
-def build_jd_promotion_request(
-    material_id: str,
-    subunionid: str,
-    position_id: str,
-    site_id: Optional[str] = None,
-) -> Dict[str, Any]:
-    """
-    构造京东转链请求参数。
-    这里先按通用工程骨架组织，后续如果你的企业账号接口字段有细微差异，再微调。
-    """
-    biz_content = {
+def build_params(material_id: str):
+    biz = {
         "promotionCodeReq": {
             "materialId": material_id,
-            "siteId": site_id or settings.JD_SITE_ID,
-            "positionId": position_id,
-            "subUnionId": subunionid,
+            "pid": settings.JD_PID
         }
     }
 
     params = {
-        "method": "jd.union.open.promotion.common.get",
+        "method": "jd.union.open.selling.promotion.get",
         "app_key": settings.JD_APP_KEY,
-        "access_token": "",
         "timestamp": _format_timestamp(),
         "format": "json",
         "v": "1.0",
         "sign_method": "md5",
-        "param_json": json.dumps(biz_content, ensure_ascii=False, separators=(",", ":")),
+        "param_json": json.dumps(biz, separators=(",", ":")),
     }
 
-    params["sign"] = _sign_jd_params(params, settings.JD_APP_SECRET)
+    params["sign"] = _sign(params, settings.JD_APP_SECRET)
     return params
 
 
-async def request_jd_promotion_link(
-    material_id: str,
-    subunionid: str,
-    position_id: str,
-    site_id: Optional[str] = None,
-    timeout: int = 20,
-) -> Dict[str, Any]:
-    """
-    调用京东转链接口。
-    返回统一结构：
-    {
-      "success": bool,
-      "promotion_url": str | None,
-      "raw": dict | str | None,
-      "error": str | None
-    }
-    """
-    params = build_jd_promotion_request(
-        material_id=material_id,
-        subunionid=subunionid,
-        position_id=position_id,
-        site_id=site_id,
-    )
+async def request_jd_promotion_link(material_id: str):
+    params = build_params(material_id)
 
     try:
-        async with httpx.AsyncClient(timeout=timeout) as client:
-            resp = await client.post(settings.JD_API_BASE, data=params)
-            resp.raise_for_status()
-            data = resp.json()
+        async with httpx.AsyncClient(timeout=20) as client:
+            r = await client.post(settings.JD_API_BASE, data=params)
+            data = r.json()
     except Exception as e:
-        return {
-            "success": False,
-            "promotion_url": None,
-            "raw": None,
-            "error": f"http_error: {str(e)}",
-        }
+        return {"success": False, "error": str(e)}
 
-    # 这里做“宽松解析”，因为不同联盟账号/接口版本字段可能略有差异
-    candidate_urls = []
+    try:
+        raw = data["jd_union_open_selling_promotion_get_responce"]["result"]
+        result = json.loads(raw)
 
-    def _walk(obj: Any):
-        if isinstance(obj, dict):
-            for k, v in obj.items():
-                if isinstance(v, (dict, list)):
-                    _walk(v)
-                elif isinstance(v, str):
-                    key_lower = k.lower()
-                    if "url" in key_lower or "click" in key_lower:
-                        if v.startswith("http://") or v.startswith("https://"):
-                            candidate_urls.append(v)
-        elif isinstance(obj, list):
-            for item in obj:
-                _walk(item)
+        if result.get("code") != 200:
+            return {"success": False, "error": result}
 
-    _walk(data)
+        d = result.get("data", {})
 
-    if candidate_urls:
-        return {
-            "success": True,
-            "promotion_url": candidate_urls[0],
-            "raw": data,
-            "error": None,
-        }
+        url = d.get("shortURL") or d.get("clickURL")
 
-    return {
-        "success": False,
-        "promotion_url": None,
-        "raw": data,
-        "error": "no_promotion_url_found_in_response",
-    }
+        return {"success": True, "promotion_url": url, "raw": result}
 
-
-def build_mock_promotion_url(material_id: str, subunionid: str) -> str:
-    return f"https://u.jd.com/mock-promo?sku={material_id}&subunionid={subunionid}"
-
-
-def build_debug_request_preview(material_id: str, subunionid: str, position_id: str) -> Dict[str, Any]:
-    params = build_jd_promotion_request(
-        material_id=material_id,
-        subunionid=subunionid,
-        position_id=position_id,
-    )
-    safe_params = params.copy()
-    if "sign" in safe_params:
-        safe_params["sign"] = f"{safe_params['sign'][:8]}..."
-    return safe_params
+    except Exception as e:
+        return {"success": False, "error": str(e), "raw": data}

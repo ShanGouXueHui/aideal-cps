@@ -2,6 +2,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
+    JD_PID: str
     APP_NAME: str = "AIdeal CPS"
     APP_ENV: str = "dev"
     APP_DEBUG: bool = True
