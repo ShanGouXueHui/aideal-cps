@@ -85,3 +85,21 @@ AIdeal CPS（智省优选）是一个：
 - docs/FREE_MODEL_POOL.md
 - memory/HANDOFF.md
 
+
+## 8. 京东联盟阶段性进展（已实测成功）
+### 8.1 已验证成功接口
+- jd.union.open.goods.jingfen.query
+- jd.union.open.promotion.bysubunionid.get
+
+### 8.2 已验证成功结果
+- jingfen.query 可正常返回高佣榜商品数据
+- promotion.bysubunionid.get 可正常返回 shortURL 短链
+- 已经完成“查询商品 -> 转推广短链”的实网打通
+
+### 8.3 当前代码落点
+- 配置: app/core/jd_union_config.py
+- 协议客户端: app/services/jd_union_client.py
+- 工作流服务: app/services/jd_union_workflow_service.py
+- smoke test:
+  - scripts/jd_api_smoke_test.py
+  - scripts/jd_top_goods_with_links.py

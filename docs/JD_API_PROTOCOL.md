@@ -60,3 +60,18 @@ https://api.jd.com/routerjson
 - materialId 可传商品链接、联盟链接、活动链接等
 - 推荐 chainType=2 先拿短链
 - sceneId 当前先用 1
+
+
+## 6. 当前代码落点
+- 配置: app/core/jd_union_config.py
+- 客户端: app/services/jd_union_client.py
+- 单测: tests/test_jd_union_client.py
+- 实网验证脚本: scripts/jd_api_smoke_test.py
+
+## 7. 当前实现原则
+- siteId / positionId 默认从 JD_PID 自动解析
+- access_token 仅在 .env 存在 JD_ACCESS_TOKEN 时才带上
+- jingfen.query 当前默认通过 goodsReq + 360buy_param_json 调用
+- promotion.bysubunionid.get 当前默认使用:
+  - chainType=2
+  - sceneId=1
