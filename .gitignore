@@ -11,4 +11,5 @@ venv/
 *.log
 .coverage
 .pytest_cache/
-alembic/versions/*.pyc
+alembic/versions/*.pycdata/jd_cache/
+scratch/

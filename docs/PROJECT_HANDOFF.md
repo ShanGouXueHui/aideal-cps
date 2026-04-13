@@ -103,3 +103,15 @@ AIdeal CPS（智省优选）是一个：
 - smoke test:
   - scripts/jd_api_smoke_test.py
   - scripts/jd_top_goods_with_links.py
+
+
+## 9. JD 内部 API（当前阶段）
+已在现有 /jd router 基础上升级为可用内部接口：
+- GET /jd/goods/top
+- GET /jd/goods/top-with-links
+- POST /jd/promotion/short-link
+
+并增加本地轻缓存：
+- 服务文件: app/services/jd_union_cache_service.py
+- 缓存目录: data/jd_cache
+- 默认 TTL: 900 秒
