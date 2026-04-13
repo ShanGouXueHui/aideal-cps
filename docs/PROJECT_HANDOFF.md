@@ -124,3 +124,18 @@ AIdeal CPS（智省优选）是一个：
 - 服务：app/services/jd_product_sync_service.py
 - 路由：POST /jd/products/sync
 - smoke test：scripts/jd_products_sync_smoke_test.py
+
+
+## 11. 商品池查询能力（进行中）
+现有 /products 已开始升级为 JD 商品池查询接口，新增筛选维度：
+- elite_id
+- elite_name
+- shop_name
+- min_commission_rate
+- has_short_url
+- order_by
+- sort
+
+当前目标：
+- 后台可直接查高佣榜 / 今日必推 / 其他榜单商品池
+- 为微信/H5 选品承接提供数据库查询能力

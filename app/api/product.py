@@ -1,4 +1,5 @@
 from typing import Optional
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
@@ -15,6 +16,13 @@ def list_products(
     page_size: int = Query(20, ge=1, le=100),
     keyword: Optional[str] = None,
     category_name: Optional[str] = None,
+    elite_id: Optional[int] = None,
+    elite_name: Optional[str] = None,
+    shop_name: Optional[str] = None,
+    min_commission_rate: Optional[float] = Query(None, ge=0),
+    has_short_url: Optional[bool] = None,
+    order_by: str = Query("sales_volume"),
+    sort: str = Query("desc"),
     db: Session = Depends(get_db),
 ):
     return get_products(
@@ -23,6 +31,13 @@ def list_products(
         page_size=page_size,
         keyword=keyword,
         category_name=category_name,
+        elite_id=elite_id,
+        elite_name=elite_name,
+        shop_name=shop_name,
+        min_commission_rate=min_commission_rate,
+        has_short_url=has_short_url,
+        order_by=order_by,
+        sort=sort,
     )
 
 
