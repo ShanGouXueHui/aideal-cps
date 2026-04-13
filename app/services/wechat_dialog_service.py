@@ -156,17 +156,17 @@ def select_three_products(products: list[Product], intent: dict[str, Any]) -> li
     return selected
 
 
-def build_product_link(product: Product, openid: str) -> str:
-    return f"{BASE_URL}/api/promotion/redirect?wechat_openid={openid}&product_id={product.id}"
+def build_product_link(product: Product, openid: str, *, scene: str, slot: int) -> str:
+    return f"{BASE_URL}/api/promotion/redirect?wechat_openid={openid}&product_id={product.id}&scene={scene}&slot={slot}"
 
 
-def build_product_block(role_label: str, product: Product, openid: str) -> str:
+def build_product_block(role_label: str, product: Product, openid: str, *, slot: int) -> str:
     reason = generate_reason(product)
     title = _short_title(getattr(product, "title", "优选商品"))
     coupon_price = _safe_decimal(getattr(product, "coupon_price", 0) or 0)
     price = _safe_decimal(getattr(product, "price", 0) or 0)
     display_price = coupon_price if coupon_price > 0 else price
-    link = build_product_link(product, openid)
+    link = build_product_link(product, openid, scene="wechat_reply", slot=slot)
     shop_name = getattr(product, "shop_name", None) or "店铺信息待补充"
 
     return (
@@ -192,7 +192,7 @@ def build_recommendation_text(selected: list[tuple[str, Product]], openid: str, 
 
     blocks = []
     for idx, (role_label, product) in enumerate(selected, start=1):
-        blocks.append(f"{idx}. {build_product_block(role_label, product, openid)}")
+        blocks.append(f"{idx}. {build_product_block(role_label, product, openid, slot=idx)}")
 
     return f"{intro}\n\n" + "\n\n".join(blocks) + f"\n\n{get_copy('retry_hint_text')}"
 

@@ -179,3 +179,11 @@ AIdeal CPS（智省优选）是一个：
   - 命中则返回 3 商品
   - 未命中则诚实提示“当前商品池未覆盖该品类”
   - 引导用户补充条件或稍后再问
+
+
+## 17. 点击归因跳转网关（进行中）
+当前开始把 /api/promotion/redirect 升级为真正的点击归因网关：
+- 先记录 click_logs
+- 再 302 跳到 JD 短链 / product.short_url
+- 写入 scene / slot / trace_id / user_agent / referer / final_url
+- 为订单归因、A/B 测试、用户画像更新做基础

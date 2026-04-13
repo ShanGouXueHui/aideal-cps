@@ -129,3 +129,18 @@
   - 帮助文案
   - 非购物回转文案
   - 无命中兜底文案
+
+
+## 12. 点击归因跳转网关（V1）
+- 对外链接统一使用自有 redirect 链接
+- redirect 时先写 click_logs，再 302 到 JD 短链
+- 第一版记录：
+  - wechat_openid
+  - product_id
+  - subunionid
+  - scene
+  - slot
+  - trace_id
+  - final_url
+  - user_agent
+  - referer
