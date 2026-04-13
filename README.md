@@ -25,3 +25,16 @@
 ```bash
 source venv/bin/activate
 uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+
+## 当前真实集成状态（2026-04）
+当前分支已不再只是“预留”京东能力，而是已经打通并验证：
+- jd.union.open.goods.jingfen.query
+- jd.union.open.promotion.bysubunionid.get
+- JD 榜单商品同步入库
+- /products 作为数据库商品池查询接口
+- /jd 内部接口与短链生成能力
+
+后续主方向：
+- 商家画像与风险过滤
+- 公众号欢迎流与 AI 导购问答
+- 自有点击归因跳转网关

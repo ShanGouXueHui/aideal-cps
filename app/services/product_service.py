@@ -16,7 +16,9 @@ def get_products(
     elite_name: Optional[str] = None,
     shop_name: Optional[str] = None,
     min_commission_rate: Optional[float] = None,
+    min_merchant_health_score: Optional[float] = None,
     has_short_url: Optional[bool] = None,
+    merchant_recommendable_only: Optional[bool] = True,
     order_by: str = "sales_volume",
     sort: str = "desc",
 ):
@@ -34,14 +36,21 @@ def get_products(
         query = query.filter(Product.shop_name.ilike(f"%{shop_name}%"))
     if min_commission_rate is not None:
         query = query.filter(Product.commission_rate >= min_commission_rate)
+    if min_merchant_health_score is not None:
+        query = query.filter(Product.merchant_health_score >= min_merchant_health_score)
     if has_short_url is True:
         query = query.filter(Product.short_url.isnot(None), Product.short_url != "")
     elif has_short_url is False:
         query = query.filter((Product.short_url.is_(None)) | (Product.short_url == ""))
+    if merchant_recommendable_only is True:
+        query = query.filter(Product.merchant_recommendable.is_(True))
+    elif merchant_recommendable_only is False:
+        query = query.filter(Product.merchant_recommendable.is_(False))
 
     order_field_map = {
         "sales_volume": Product.sales_volume,
         "commission_rate": Product.commission_rate,
+        "merchant_health_score": Product.merchant_health_score,
         "updated_at": Product.updated_at,
         "price": Product.price,
         "coupon_price": Product.coupon_price,

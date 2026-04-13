@@ -25,6 +25,9 @@ class ProductItem(BaseModel):
     elite_id: Optional[int] = None
     elite_name: Optional[str] = None
     owner: Optional[str] = None
+    merchant_health_score: Optional[float] = None
+    merchant_risk_flags: Optional[str] = None
+    merchant_recommendable: Optional[bool] = None
     status: str
 
     model_config = {

@@ -8,6 +8,11 @@ from sqlalchemy.orm import Session
 
 from app.models.product import Product
 from app.services.jd_union_workflow_service import JDUnionWorkflowService
+from app.services.merchant_profile_service import (
+    build_category_price_medians,
+    build_merchant_snapshot,
+    upsert_merchant_profile,
+)
 
 
 def _pick_image_url(item: dict[str, Any]) -> str | None:
@@ -36,7 +41,11 @@ def _coupon_summary(item: dict[str, Any]) -> str | None:
     return None
 
 
-def normalize_jd_item(item: dict[str, Any], short_url: str | None = None) -> dict[str, Any]:
+def normalize_jd_item(
+    item: dict[str, Any],
+    short_url: str | None = None,
+    merchant_snapshot: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     price_info = item.get("priceInfo") or {}
     commission_info = item.get("commissionInfo") or {}
     category_info = item.get("categoryInfo") or {}
@@ -51,6 +60,8 @@ def normalize_jd_item(item: dict[str, Any], short_url: str | None = None) -> dic
         or material_url
         or ""
     )
+
+    merchant_snapshot = merchant_snapshot or {}
 
     return {
         "jd_sku_id": jd_sku_id,
@@ -74,6 +85,9 @@ def normalize_jd_item(item: dict[str, Any], short_url: str | None = None) -> dic
         "elite_id": int(resource_info.get("eliteId")) if resource_info.get("eliteId") is not None else None,
         "elite_name": resource_info.get("eliteName"),
         "owner": item.get("owner"),
+        "merchant_health_score": merchant_snapshot.get("merchant_health_score"),
+        "merchant_risk_flags": merchant_snapshot.get("risk_flags"),
+        "merchant_recommendable": merchant_snapshot.get("recommendable", True),
         "status": "active",
         "last_sync_at": datetime.now(timezone.utc),
     }
@@ -107,14 +121,26 @@ def sync_jd_products(
         page_size=page_size,
     )[:limit]
 
+    price_medians = build_category_price_medians(goods)
+
     inserted = 0
     updated = 0
     rows: list[dict[str, Any]] = []
 
     for item in goods:
+        category_info = item.get("categoryInfo") or {}
+        category_name = category_info.get("cid3Name") or category_info.get("cid2Name") or category_info.get("cid1Name") or "unknown"
+
+        merchant_snapshot = build_merchant_snapshot(
+            item,
+            category_median_price=price_medians.get(category_name),
+        )
+        upsert_merchant_profile(db, merchant_snapshot)
+
         material_url = item.get("materialUrl")
         short_url = workflow.build_short_link(material_url) if (with_short_links and material_url) else None
-        payload = normalize_jd_item(item, short_url=short_url)
+        payload = normalize_jd_item(item, short_url=short_url, merchant_snapshot=merchant_snapshot)
+
         product, action = upsert_product(db, payload)
         if action == "inserted":
             inserted += 1
@@ -126,6 +152,8 @@ def sync_jd_products(
                 "jd_sku_id": product.jd_sku_id,
                 "title": product.title,
                 "short_url": product.short_url,
+                "merchant_health_score": product.merchant_health_score,
+                "merchant_recommendable": product.merchant_recommendable,
                 "action": action,
             }
         )

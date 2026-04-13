@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Float, DateTime, Text, Numeric
+from sqlalchemy import Column, Integer, String, Float, DateTime, Text, Numeric, Boolean
 from sqlalchemy.sql import func
 
 from app.core.db import Base
@@ -38,6 +38,10 @@ class Product(Base):
     elite_id = Column(Integer, nullable=True, index=True)
     elite_name = Column(String(100), nullable=True)
     owner = Column(String(20), nullable=True)
+
+    merchant_health_score = Column(Float, nullable=True, index=True)
+    merchant_risk_flags = Column(String(255), nullable=True)
+    merchant_recommendable = Column(Boolean, default=True, index=True)
 
     status = Column(String(50), default="active")
 

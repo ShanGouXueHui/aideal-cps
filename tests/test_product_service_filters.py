@@ -23,6 +23,9 @@ def seed(db):
             elite_id=129,
             elite_name="高佣榜",
             short_url="https://u.jd.com/a",
+            merchant_health_score=92.0,
+            merchant_risk_flags=None,
+            merchant_recommendable=True,
             status="active",
         ),
         Product(
@@ -38,13 +41,16 @@ def seed(db):
             elite_id=129,
             elite_name="高佣榜",
             short_url="https://u.jd.com/b",
+            merchant_health_score=78.0,
+            merchant_risk_flags=None,
+            merchant_recommendable=True,
             status="active",
         ),
         Product(
             jd_sku_id="sku-3",
-            title="无短链商品C",
+            title="高风险商品C",
             category_name="防身用品",
-            shop_name="佐罗旗舰店",
+            shop_name="风险店铺",
             price=Decimal("103.55"),
             coupon_price=Decimal("103.55"),
             commission_rate=30.0,
@@ -53,6 +59,9 @@ def seed(db):
             elite_id=31,
             elite_name="今日必推",
             short_url=None,
+            merchant_health_score=55.0,
+            merchant_risk_flags="poor_after_sales,price_too_high",
+            merchant_recommendable=False,
             status="active",
         ),
     ]
@@ -89,9 +98,29 @@ def test_get_products_filter_by_shop_name_and_min_commission():
 
     result = get_products(
         db=db,
-        shop_name="佐罗",
+        shop_name="风险店铺",
         min_commission_rate=20,
+        merchant_recommendable_only=False,
     )
 
     assert result["total"] == 1
-    assert result["items"][0].title == "无短链商品C"
+    assert result["items"][0].title == "高风险商品C"
+
+
+def test_get_products_filter_by_merchant_fields():
+    engine = create_engine("sqlite:///:memory:")
+    SessionLocal = sessionmaker(bind=engine)
+    Base.metadata.create_all(bind=engine, tables=[Product.__table__])
+    db = SessionLocal()
+    seed(db)
+
+    result = get_products(
+        db=db,
+        merchant_recommendable_only=True,
+        min_merchant_health_score=80,
+        order_by="merchant_health_score",
+        sort="desc",
+    )
+
+    assert result["total"] == 1
+    assert result["items"][0].title == "高佣商品A"
