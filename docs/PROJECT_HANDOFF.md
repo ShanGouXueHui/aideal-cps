@@ -115,3 +115,12 @@ AIdeal CPS（智省优选）是一个：
 - 服务文件: app/services/jd_union_cache_service.py
 - 缓存目录: data/jd_cache
 - 默认 TTL: 900 秒
+
+
+## 10. 商品结构化入库（进行中）
+当前开始把 JD 榜单商品同步到 products 表，而不是只做临时查询。
+本阶段新增内容：
+- Alembic 迁移：补充 JD 商品字段
+- 服务：app/services/jd_product_sync_service.py
+- 路由：POST /jd/products/sync
+- smoke test：scripts/jd_products_sync_smoke_test.py

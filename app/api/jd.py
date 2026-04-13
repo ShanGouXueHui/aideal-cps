@@ -1,10 +1,11 @@
 from __future__ import annotations
 
-import json
-
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Depends
 from pydantic import BaseModel
+from sqlalchemy.orm import Session
 
+from app.core.db import get_db
+from app.services.jd_product_sync_service import sync_jd_products
 from app.services.jd_union_cache_service import JDUnionCacheService
 from app.services.jd_union_workflow_service import JDUnionWorkflowService
 
@@ -78,9 +79,20 @@ def jd_promotion_short_link(payload: ShortLinkRequest):
     }
 
 
-@router.get("/products/sync")
-def jd_products_sync():
-    return {
-        "message": "use /jd/goods/top or /jd/goods/top-with-links instead",
-        "status": "deprecated_placeholder"
-    }
+@router.post("/products/sync")
+def jd_products_sync(
+    elite_id: int = Query(..., description="京粉频道ID"),
+    limit: int = Query(10, ge=1, le=50),
+    page_index: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=50),
+    with_short_links: bool = Query(True),
+    db: Session = Depends(get_db),
+):
+    return sync_jd_products(
+        db,
+        elite_id=elite_id,
+        limit=limit,
+        page_index=page_index,
+        page_size=page_size,
+        with_short_links=with_short_links,
+    )
