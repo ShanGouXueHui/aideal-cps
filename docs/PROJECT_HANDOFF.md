@@ -374,3 +374,9 @@ P3 当前新增：
   - 返回购买文案 / 分享文案
   - 返回 asset_token / partner_code
 - 下一步可继续把素材包摘要映射为真正的文件下载/查看入口
+
+
+## 39. 素材包查看入口已接入
+- partner_material_bundle_service.py：素材包清单与文件解析
+- partner_materials.py：素材包清单接口 + 文件查看接口
+- partner_share_entry_service.py：分享商品回复已带素材包入口

@@ -58,6 +58,7 @@ def test_get_partner_share_product_request_reply():
     assert "维达卷纸超值装" in reply
     assert "自己先买：http://8.136.28.6/api/partner/assets/demo/buy" in reply
     assert "转发分享：http://8.136.28.6/api/partner/assets/demo/share" in reply
+    assert "素材包入口：http://8.136.28.6/api/partner/materials/asset_demo_001" in reply
     assert "海报路径：data/demo/poster.svg" in reply
     assert "购买码路径：data/demo/buy_qr.svg" in reply
     assert "分享码路径：data/demo/share_qr.svg" in reply

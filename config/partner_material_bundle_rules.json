@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "base_url": "http://8.136.28.6",
+  "file_kind_map": {
+    "poster": "poster_svg_path",
+    "buy_qr": "buy_qr_svg_path",
+    "share_qr": "share_qr_svg_path"
+  }
+}

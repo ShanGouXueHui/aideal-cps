@@ -125,6 +125,21 @@ def _append_if(lines: list[str], label: str, value) -> None:
         lines.append(f"{label}{value}")
 
 
+def _material_bundle_url(asset: dict) -> str | None:
+    asset_token = asset.get("asset_token")
+    if not asset_token:
+        return None
+    try:
+        from app.services.partner_material_bundle_config_service import load_partner_material_bundle_rules
+        rules = load_partner_material_bundle_rules()
+        base_url = (rules.get("base_url") or "").rstrip("/")
+        if not base_url:
+            return None
+        return f"{base_url}/api/partner/materials/{asset_token}"
+    except Exception:
+        return None
+
+
 def _build_material_bundle_reply(product: Product, asset: dict) -> str:
     rules = load_partner_share_entry_rules()
     intro = rules.get("intro") or "已帮你生成这件商品的专属分销素材摘要："
@@ -134,6 +149,7 @@ def _build_material_bundle_reply(product: Product, asset: dict) -> str:
     share_url = asset.get("share_url") or buy_url
     price_value = _safe_float(product.coupon_price) or _safe_float(product.price)
     reason = asset.get("reason") or _fallback_reason(product, price_value)
+    bundle_url = _material_bundle_url(asset)
 
     lines = [
         intro,
@@ -148,6 +164,7 @@ def _build_material_bundle_reply(product: Product, asset: dict) -> str:
 
     _append_if(lines, "合伙人编码：", asset.get("partner_code"))
     _append_if(lines, "素材标识：", asset.get("asset_token"))
+    _append_if(lines, "素材包入口：", bundle_url)
     _append_if(lines, "海报路径：", asset.get("poster_svg_path"))
     _append_if(lines, "购买码路径：", asset.get("buy_qr_svg_path"))
     _append_if(lines, "分享码路径：", asset.get("share_qr_svg_path"))
@@ -166,9 +183,9 @@ def _build_material_bundle_reply(product: Product, asset: dict) -> str:
         _append_if(lines, "京口令(短)：", j_command_short)
         _append_if(lines, "京口令(长)：", j_command_long)
 
-    if asset.get("poster_svg_path"):
+    if bundle_url:
         lines.append("")
-        lines.append("这次已经生成了完整素材包核心信息，你可以直接用于朋友圈/私聊分发。")
+        lines.append("这次已生成素材包入口，你可以直接打开查看海报和二维码。")
 
     if footer_lines:
         lines.append("")

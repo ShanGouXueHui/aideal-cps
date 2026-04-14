@@ -379,3 +379,14 @@
   - 分享文案
   - 京口令（若存在）
 - 目标：让合伙人拿到更接近可直接分发的完整素材摘要
+
+
+## 37. 素材包查看入口（V1）
+- 新增：
+  - `/api/partner/materials/{asset_token}` 素材包清单接口
+  - `/api/partner/materials/{asset_token}/files/{file_kind}` 文件查看接口
+- `file_kind` 当前支持：
+  - poster
+  - buy_qr
+  - share_qr
+- 分享商品回复里已返回素材包入口 URL
