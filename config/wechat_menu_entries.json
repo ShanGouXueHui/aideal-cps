@@ -1,0 +1,23 @@
+{
+  "version": 1,
+  "menu_entries": [
+    {
+      "key": "find_product",
+      "title": "找商品",
+      "entry_type": "reply_text",
+      "reply_text": "直接告诉我你想买什么就行，例如：卫生纸、卫生巾、宝宝湿巾、洗衣液。我会尽量先给你挑 3 个更值的。"
+    },
+    {
+      "key": "today_recommend",
+      "title": "今日推荐",
+      "entry_type": "reply_text",
+      "reply_text": "今天可以先看这三个方向：\\n1）今日热销\\n2）高佣优选\\n3）限时活动\\n\\n你也可以直接回我：热销 / 高佣 / 活动，我按这个方向给你筛。"
+    },
+    {
+      "key": "partner_center",
+      "title": "合伙人中心",
+      "entry_type": "reply_text",
+      "reply_text": "合伙人中心正在接入固定入口。当前你可以直接回复：合伙人中心，我会带你进入积分、素材包、分享商品和开通/续费入口。"
+    }
+  ]
+}

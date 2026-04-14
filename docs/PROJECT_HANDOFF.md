@@ -322,3 +322,28 @@ P3 当前新增：
 - 当前 cron：每日 03:15 执行 run_nightly_catalog_refresh.py
 - 使用 flock 防重入
 - 日志输出到 logs/catalog_refresh.log
+
+
+## 32. 推荐口径统一与菜单配置
+- recommendation_guard_service.py：统一主动推荐 / 合伙人分享 / 用户主动搜索的准入规则
+- wechat_menu_entries.json：固定三入口菜单配置
+- wechat_menu_service.py：菜单文案回复服务
+- 下一步：将菜单 key 接入 message_router / 微信 CLICK 事件
+
+
+## 33. message_router 已接入菜单入口
+- CLICK 事件支持菜单 key：找商品 / 今日推荐 / 合伙人中心
+- 文本消息先判断菜单关键词，再进入导购链路
+- 下一步可继续把“今日推荐”升级为动态推荐，而不是静态回复
+
+
+## 34. 今日推荐已接入真实商品池
+- today_recommend_service.py：从真实商品池生成菜单“今日推荐”回复
+- message_router.py：文本关键词/CLICK 事件触发今日推荐时走动态服务
+- 当前仍是文本输出，下一步可升级成图文/海报卡片
+
+
+## 35. 合伙人中心已接入动态摘要
+- partner_center_entry_service.py：生成合伙人中心入口摘要
+- message_router.py：文本关键词/CLICK 事件触发“合伙人中心”时走动态摘要
+- 下一步可接积分、素材、分享商品、续费四个子入口

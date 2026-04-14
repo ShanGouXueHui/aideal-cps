@@ -297,3 +297,51 @@
 - 防重入：flock /tmp/aideal_catalog_refresh.lock
 - 日志文件：logs/catalog_refresh.log
 - 当前策略：精选榜刷新为主，关键词补池为辅
+
+
+## 29. 推荐口径统一（V1）
+- 主动推荐：仅允许 `status=active`、`compliance_level=normal`、`allow_proactive_push=true`、`merchant_recommendable=true`
+- 合伙人分享：仅允许 `status=active`、`compliance_level=normal`、`allow_partner_share=true`、`merchant_recommendable=true`
+- 用户主动搜索：允许展示 restricted，但禁止 hard_block
+- 目标：将“主动推荐 / 分享 / 主动搜索”三层口径分离，避免商家风险口径冲突
+
+## 30. 微信菜单入口（V1）
+- 找商品：直接引导用户回复商品名
+- 今日推荐：承接热销 / 高佣 / 活动
+- 合伙人中心：承接积分、素材包、开通/续费、分享商品
+- 本阶段先固化服务端配置与回复文案，下一阶段再接入公众号菜单点击事件
+
+
+## 31. 菜单关键词与 CLICK 事件接入（V1）
+- message_router 已支持：
+  - subscribe -> 欢迎语
+  - click -> 按菜单 key 返回固定入口文案
+  - text -> 先判断菜单关键词，再进入帮助/导购对话
+- 当前菜单入口：
+  - 找商品
+  - 今日推荐
+  - 合伙人中心
+
+
+## 32. 今日推荐动态化（V1）
+- 菜单“今日推荐”不再返回固定文案
+- 直接从商品池中选取可主动推荐商品：
+  - status=active
+  - compliance_level=normal
+  - allow_proactive_push=true
+  - merchant_recommendable=true
+- 当前排序：销量优先，其次预计佣金，再次按最新记录
+- 输出带 promotion redirect 跟踪链接，scene=menu_today_recommend
+
+
+## 33. 合伙人中心入口动态化（V1）
+- 菜单“合伙人中心”不再仅返回静态文案
+- 当前返回摘要包括：
+  - 合伙人编码
+  - 当前等级
+  - 状态
+  - 分成比例
+  - 可用积分
+  - 已结算佣金
+  - 最近素材数
+- 下一步可继续接“积分 / 素材 / 分享商品 / 续费”四个子动作
