@@ -1,0 +1,22 @@
+{
+  "eyebrow": "AI导购 · 理性消费",
+  "brand_name": "智省优选",
+  "tagline": "AI帮你选，更值更省钱",
+  "supporting_line": "不是卖货，而是帮你选更值的",
+  "cta_text": "点击查看详情",
+  "width": 720,
+  "height": 1080,
+  "padding": 48,
+  "background": "#F5F8F6",
+  "panel_background": "#FFFFFF",
+  "brand_color": "#1F3D36",
+  "accent_color": "#DDF5C7",
+  "text_primary": "#17322C",
+  "text_secondary": "#5C736C",
+  "price_color": "#17322C",
+  "badge_background": "#EEF7E7",
+  "badge_text": "#1F3D36",
+  "border_color": "#D9E6DF",
+  "button_background": "#1F3D36",
+  "button_text": "#FFFFFF"
+}

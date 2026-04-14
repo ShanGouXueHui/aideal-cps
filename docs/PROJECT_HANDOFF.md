@@ -201,3 +201,30 @@ AIdeal CPS（智省优选）是一个：
   - 销量偏好
   - 自营偏好
   - 偏好品类
+
+
+## 19. 海报卡与晨推作业（进行中）
+当前开始落地：
+- 商品推荐海报卡 SVG 生成
+- 晨推候选批次 job.json 输出
+- 晨推脚本 run_morning_push_job.py
+- cron 安装脚本 install_morning_push_cron.sh（先生成，未执行）
+
+
+## 20. 合伙人归因基础版（进行中）
+当前新增设计：
+- 合伙人账号 partner_accounts
+- 合伙人商品资产 partner_share_assets
+- 合伙人点击日志 partner_share_clicks
+- 一键购买永远在合伙人视图中排第一
+- 分享分发第二，收益展示第三
+- 所有分成比例与等级门槛放在 config/partner_program_rules.json
+
+
+## 21. 合伙人分享资产包（进行中）
+P2 已补充：
+- buy_copy / share_copy
+- buy_qr_svg_path / share_qr_svg_path
+- poster_svg_path
+- j_command_short / j_command_long 预留
+- 合伙人视图保持“一键购买优先，分享第二”

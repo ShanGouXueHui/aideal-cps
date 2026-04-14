@@ -1,0 +1,7 @@
+{
+  "buy_first_template": "【智省优选】{title}\n到手参考：{price_text}\n推荐理由：{reason}\n一键购买：{buy_url}",
+  "share_template": "【智省优选合伙人推荐】{title}\n到手参考：{price_text}\n推荐理由：{reason}\n自己先买：{buy_url}\n转发分享：{share_url}",
+  "poster_title": "智省优选",
+  "poster_subtitle": "AI帮你选，更值更省钱",
+  "default_reason": "这件商品当前综合价格、热度和店铺稳定性后，更值得先看。"
+}
