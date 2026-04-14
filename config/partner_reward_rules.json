@@ -1,0 +1,37 @@
+{
+  "tax_reserve_rate": 0.8,
+  "points_value_rate": 1.0,
+  "default_recent_limit": 20,
+  "event_types": [
+    "estimated",
+    "settled",
+    "reversed",
+    "redeem",
+    "adjustment"
+  ],
+  "point_use_plan": {
+    "currency_name": "智省积分",
+    "cash_redemption_enabled": false,
+    "policy_note": "积分当前仅限站内权益与服务抵扣，不支持现金提现。",
+    "supported_scenes": [
+      {
+        "scene_code": "partner_membership_fee",
+        "scene_name": "合伙人开通/续费抵扣",
+        "point_to_rmb_rate": 1.0,
+        "enabled": true
+      },
+      {
+        "scene_code": "premium_selection_service",
+        "scene_name": "精选选品服务包抵扣",
+        "point_to_rmb_rate": 1.0,
+        "enabled": true
+      },
+      {
+        "scene_code": "poster_material_package",
+        "scene_name": "推广海报与素材包抵扣",
+        "point_to_rmb_rate": 1.0,
+        "enabled": true
+      }
+    ]
+  }
+}

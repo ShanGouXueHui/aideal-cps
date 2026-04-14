@@ -2,6 +2,12 @@
   "public_base_url": "http://8.136.28.6",
   "default_status": "active",
   "default_tier": "partner",
+  "sticky_tier": true,
+  "entry_rules": {
+    "gmv_auto_upgrade_threshold_rmb": 10000,
+    "fee_activation_enabled": true,
+    "fee_activation_amount_rmb": 100
+  },
   "tiers": {
     "partner": {
       "name": "正式合伙人",

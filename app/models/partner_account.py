@@ -1,4 +1,4 @@
-from sqlalchemy import Column, DateTime, Float, ForeignKey, Integer, Numeric, String
+from sqlalchemy import Boolean, Column, DateTime, Float, ForeignKey, Integer, Numeric, String
 from sqlalchemy.sql import func
 
 from app.core.db import Base
@@ -16,6 +16,11 @@ class PartnerAccount(Base):
     cumulative_paid_gmv = Column(Numeric(12, 2), nullable=True, server_default="0")
     cumulative_settled_commission = Column(Numeric(12, 2), nullable=True, server_default="0")
     cumulative_reward_points = Column(Numeric(12, 2), nullable=True, server_default="0")
+
+    activation_fee_paid = Column(Boolean, nullable=False, server_default="0")
+    activation_fee_paid_at = Column(DateTime(timezone=True), nullable=True)
+    activated_via = Column(String(32), nullable=True)
+
     activated_at = Column(DateTime(timezone=True), nullable=True)
     last_active_at = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())

@@ -228,3 +228,34 @@ P2 已补充：
 - poster_svg_path
 - j_command_short / j_command_long 预留
 - 合伙人视图保持“一键购买优先，分享第二”
+
+
+## 22. 合伙人收益账本基础版（进行中）
+P3 当前新增：
+- partner_reward_ledgers
+- estimated / settled / reversed / redeem / adjustment 事件
+- tier 自动升级
+- /api/partner/overview 概览接口
+- 仍坚持先做积分账本，不做现金提现
+
+
+### P3 规则补充
+- 等级升级按累计已结算正向佣金，不因后续小额退货降级
+- 积分当前仅限站内权益与服务抵扣，不支持现金提现
+- 合伙人开通规则补充：支持 100 元开通门槛（规则已入配置）
+
+
+## 23. 积分消耗最小闭环（进行中）
+当前新增：
+- partner_point_redemptions
+- 100元合伙人开通/续费消费项
+- redemption options / preview / commit / history
+- activation_fee_paid / activation_fee_paid_at / activated_via
+
+
+## 24. 合伙人中心最小可用版（进行中）
+当前新增：
+- /api/partner/center
+- 聚合 profile / reward_overview / redemption_options / redemption_history
+- recent_assets / recent_shareable_products
+- monetization_closure 区块，前台可直接显示开通闭环
