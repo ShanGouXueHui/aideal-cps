@@ -15,6 +15,7 @@ from app.services.partner_redemption_service import (
     list_partner_redemption_options,
 )
 from app.services.partner_reward_service import get_partner_reward_overview
+from app.services.product_compliance_service import apply_product_visibility_filter
 
 
 def _to_float(value: Any) -> float:
@@ -72,13 +73,10 @@ def _recent_assets(db: Session, partner_account_id: int, limit: int) -> list[dic
 
 
 def _recent_shareable_products(db: Session, limit: int) -> list[dict]:
-    rows = (
-        db.query(Product)
-        .filter(Product.status == "active")
-        .order_by(Product.updated_at.desc(), Product.id.desc())
-        .limit(limit)
-        .all()
-    )
+    query = db.query(Product).filter(Product.status == "active")
+    query = apply_product_visibility_filter(query, require_partner_share=True)
+    rows = query.order_by(Product.updated_at.desc(), Product.id.desc()).limit(limit).all()
+
     items = []
     for row in rows:
         items.append(
@@ -97,6 +95,7 @@ def _recent_shareable_products(db: Session, limit: int) -> list[dict]:
                 "elite_name": _safe_text(getattr(row, "elite_name", None)),
                 "shop_name": _safe_text(getattr(row, "shop_name", None)),
                 "merchant_recommendable": bool(getattr(row, "merchant_recommendable", True)),
+                "compliance_level": _safe_text(getattr(row, "compliance_level", None)),
             }
         )
     return items

@@ -9,8 +9,10 @@ from sqlalchemy.orm import Session
 
 from app.models.product import Product
 from app.models.user import User
+from app.services.product_compliance_service import apply_product_visibility_filter
 from app.services.user_profile_config_service import load_morning_push_copy
 from app.services.user_profile_service import preferred_category
+
 
 BASE_URL = "http://8.136.28.6"
 
@@ -36,7 +38,7 @@ def _priority_mode(user: User) -> str:
 
 
 def _base_query(db: Session):
-    return (
+    query = (
         db.query(Product)
         .filter(
             Product.status == "active",
@@ -45,6 +47,7 @@ def _base_query(db: Session):
             Product.short_url != "",
         )
     )
+    return apply_product_visibility_filter(query, require_proactive_push=True)
 
 
 def _ordered_query(query, mode: str):
@@ -88,15 +91,12 @@ def _ordered_query(query, mode: str):
 def select_morning_product(db: Session, user: User) -> tuple[Product | None, str | None, str]:
     mode = _priority_mode(user)
     category = preferred_category(user)
-
     query = _base_query(db)
     if category:
         query = query.filter(Product.category_name.ilike(f"%{category}%"))
     product = _ordered_query(query, mode).first()
-
     if not product and category:
         product = _ordered_query(_base_query(db), mode).first()
-
     return product, category, mode
 
 
@@ -110,9 +110,11 @@ def build_morning_push_message(user: User, product: Product, *, category: str | 
         "fallback": copy["fallback_intro"],
     }
     intro = intro_map.get(mode, copy["fallback_intro"])
+
     coupon_price = _safe_decimal(getattr(product, "coupon_price", 0) or 0)
     price = _safe_decimal(getattr(product, "price", 0) or 0)
     display_price = coupon_price if coupon_price > 0 else price
+
     category_text = f"偏好品类：{category}\n" if category else ""
     link = f"{BASE_URL}/api/promotion/redirect?wechat_openid={user.wechat_openid}&product_id={product.id}&scene=morning_push&slot=1"
 

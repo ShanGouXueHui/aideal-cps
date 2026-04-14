@@ -1,0 +1,58 @@
+{
+  "default_compliance_level": "normal",
+  "hard_block_keywords": {
+    "title": [
+      "防狼",
+      "辣椒水",
+      "喷雾剂",
+      "喷雾",
+      "电击",
+      "甩棍",
+      "弓弩",
+      "钢珠",
+      "子弹",
+      "枪",
+      "开刃刀",
+      "管制刀",
+      "催情",
+      "迷药",
+      "处方药",
+      "冰毒",
+      "大麻",
+      "黄赌毒",
+      "情色视频",
+      "成人视频"
+    ],
+    "category": [
+      "防身",
+      "军警",
+      "武器",
+      "枪械",
+      "刀具"
+    ]
+  },
+  "restricted_keywords": {
+    "title": [
+      "成人用品",
+      "情趣",
+      "飞机杯",
+      "跳蛋",
+      "震动棒",
+      "自慰",
+      "润滑液",
+      "延时喷剂",
+      "避孕套",
+      "安全套"
+    ],
+    "category": [
+      "成人用品",
+      "情趣用品",
+      "计生用品"
+    ]
+  },
+  "jd_forbid_types_restricted": [10, 11],
+  "partner_share_allowed_levels": ["normal"],
+  "proactive_push_allowed_levels": ["normal"],
+  "adult_visible_levels": ["normal", "restricted"],
+  "minor_visible_levels": ["normal"]
+}

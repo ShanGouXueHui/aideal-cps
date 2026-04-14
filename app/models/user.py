@@ -8,7 +8,6 @@ class User(Base):
     __tablename__ = "users"
 
     id = Column(Integer, primary_key=True, index=True)
-
     wechat_openid = Column(String(64), unique=True, nullable=True)
     wechat_unionid = Column(String(64), unique=True, nullable=True)
     nickname = Column(String(128), nullable=True)
@@ -29,5 +28,9 @@ class User(Base):
     morning_push_enabled = Column(Boolean, default=True, index=True)
     morning_push_hour = Column(Integer, default=8, index=True)
     last_push_at = Column(DateTime(timezone=True), nullable=True)
+
+    adult_verified = Column(Boolean, nullable=False, server_default="0", index=True)
+    adult_verified_at = Column(DateTime(timezone=True), nullable=True)
+    verification_source = Column(String(32), nullable=True)
 
     created_at = Column(DateTime(timezone=True), server_default=func.now())

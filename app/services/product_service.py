@@ -4,6 +4,7 @@ from sqlalchemy import asc, desc
 from sqlalchemy.orm import Session
 
 from app.models.product import Product
+from app.services.product_compliance_service import apply_product_visibility_filter
 
 
 def get_products(
@@ -21,8 +22,10 @@ def get_products(
     merchant_recommendable_only: Optional[bool] = True,
     order_by: str = "sales_volume",
     sort: str = "desc",
+    adult_verified: bool = False,
 ):
     query = db.query(Product).filter(Product.status == "active")
+    query = apply_product_visibility_filter(query, adult_verified=adult_verified)
 
     if keyword:
         query = query.filter(Product.title.ilike(f"%{keyword}%"))
@@ -38,10 +41,12 @@ def get_products(
         query = query.filter(Product.commission_rate >= min_commission_rate)
     if min_merchant_health_score is not None:
         query = query.filter(Product.merchant_health_score >= min_merchant_health_score)
+
     if has_short_url is True:
         query = query.filter(Product.short_url.isnot(None), Product.short_url != "")
     elif has_short_url is False:
         query = query.filter((Product.short_url.is_(None)) | (Product.short_url == ""))
+
     if merchant_recommendable_only is True:
         query = query.filter(Product.merchant_recommendable.is_(True))
     elif merchant_recommendable_only is False:
@@ -68,9 +73,7 @@ def get_products(
     return {"total": total, "items": items}
 
 
-def get_product_by_id(db: Session, product_id: int):
-    return (
-        db.query(Product)
-        .filter(Product.id == product_id, Product.status == "active")
-        .first()
-    )
+def get_product_by_id(db: Session, product_id: int, adult_verified: bool = False):
+    query = db.query(Product).filter(Product.id == product_id, Product.status == "active")
+    query = apply_product_visibility_filter(query, adult_verified=adult_verified)
+    return query.first()

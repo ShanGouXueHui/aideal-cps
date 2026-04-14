@@ -1,4 +1,5 @@
 from typing import Optional, List
+
 from pydantic import BaseModel
 
 
@@ -28,6 +29,11 @@ class ProductItem(BaseModel):
     merchant_health_score: Optional[float] = None
     merchant_risk_flags: Optional[str] = None
     merchant_recommendable: Optional[bool] = None
+    compliance_level: Optional[str] = None
+    age_gate_required: Optional[bool] = None
+    allow_proactive_push: Optional[bool] = None
+    allow_partner_share: Optional[bool] = None
+    compliance_notes: Optional[str] = None
     status: str
 
     model_config = {

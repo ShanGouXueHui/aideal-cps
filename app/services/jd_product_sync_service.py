@@ -13,12 +13,14 @@ from app.services.merchant_profile_service import (
     build_merchant_snapshot,
     upsert_merchant_profile,
 )
+from app.services.product_compliance_service import enrich_product_payload_with_compliance
 
 
 def _pick_image_url(item: dict[str, Any]) -> str | None:
     image_info = item.get("imageInfo") or {}
     if image_info.get("whiteImage"):
         return image_info["whiteImage"]
+
     image_list = image_info.get("imageList") or []
     if isinstance(image_list, list) and image_list:
         return image_list[0].get("url")
@@ -51,19 +53,13 @@ def normalize_jd_item(
     category_info = item.get("categoryInfo") or {}
     shop_info = item.get("shopInfo") or {}
     resource_info = item.get("resourceInfo") or {}
-
     material_url = item.get("materialUrl")
     jd_sku_id = str(
-        item.get("skuId")
-        or item.get("spuid")
-        or item.get("itemId")
-        or material_url
-        or ""
+        item.get("skuId") or item.get("spuid") or item.get("itemId") or material_url or ""
     )
-
     merchant_snapshot = merchant_snapshot or {}
 
-    return {
+    payload = {
         "jd_sku_id": jd_sku_id,
         "title": item.get("skuName") or "unknown",
         "description": None,
@@ -91,6 +87,10 @@ def normalize_jd_item(
         "status": "active",
         "last_sync_at": datetime.now(timezone.utc),
     }
+    return enrich_product_payload_with_compliance(
+        payload,
+        forbid_types=item.get("forbidTypes") or [],
+    )
 
 
 def upsert_product(db: Session, payload: dict[str, Any]) -> tuple[Product, str]:
@@ -122,7 +122,6 @@ def sync_jd_products(
     )[:limit]
 
     price_medians = build_category_price_medians(goods)
-
     inserted = 0
     updated = 0
     rows: list[dict[str, Any]] = []
@@ -130,7 +129,6 @@ def sync_jd_products(
     for item in goods:
         category_info = item.get("categoryInfo") or {}
         category_name = category_info.get("cid3Name") or category_info.get("cid2Name") or category_info.get("cid1Name") or "unknown"
-
         merchant_snapshot = build_merchant_snapshot(
             item,
             category_median_price=price_medians.get(category_name),
@@ -140,8 +138,8 @@ def sync_jd_products(
         material_url = item.get("materialUrl")
         short_url = workflow.build_short_link(material_url) if (with_short_links and material_url) else None
         payload = normalize_jd_item(item, short_url=short_url, merchant_snapshot=merchant_snapshot)
-
         product, action = upsert_product(db, payload)
+
         if action == "inserted":
             inserted += 1
         else:
@@ -154,12 +152,14 @@ def sync_jd_products(
                 "short_url": product.short_url,
                 "merchant_health_score": product.merchant_health_score,
                 "merchant_recommendable": product.merchant_recommendable,
+                "compliance_level": product.compliance_level,
+                "allow_proactive_push": product.allow_proactive_push,
+                "allow_partner_share": product.allow_partner_share,
                 "action": action,
             }
         )
 
     db.commit()
-
     return {
         "elite_id": elite_id,
         "limit": limit,

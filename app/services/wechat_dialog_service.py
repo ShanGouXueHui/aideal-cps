@@ -4,13 +4,16 @@ import os
 from decimal import Decimal
 from typing import Any
 
-from sqlalchemy import or_, desc
+from sqlalchemy import desc, or_
 from sqlalchemy.orm import Session
 
 from app.models.product import Product
+from app.models.user import User
+from app.services.product_compliance_service import apply_product_visibility_filter
 from app.services.product_intent_service import parse_product_intent
 from app.services.recommendation_service import generate_reason
 from app.services.wechat_copy_service import get_copy
+
 
 BASE_URL = os.getenv("PUBLIC_BASE_URL", "http://8.136.28.6")
 
@@ -72,20 +75,26 @@ def _preference_score(product: Product, intent: dict[str, Any]) -> Decimal:
     if intent.get("wants_low_price"):
         score += discount * Decimal("0.8")
         score -= coupon_price * Decimal("0.06")
-
     if intent.get("wants_quality"):
         score += merchant_health * Decimal("0.8")
-
     if intent.get("wants_sales"):
         score += sales_volume * Decimal("0.08")
-
     if intent.get("wants_self_operated") and str(getattr(product, "owner", "") or "") == "g":
         score += Decimal("12")
-
     return score
 
 
-def search_candidate_products(db: Session, intent: dict[str, Any], limit: int = 60) -> list[Product]:
+def _resolve_adult_verified(db: Session, openid: str) -> bool:
+    user = db.query(User).filter(User.wechat_openid == openid).first()
+    return bool(getattr(user, "adult_verified", False)) if user else False
+
+
+def search_candidate_products(
+    db: Session,
+    intent: dict[str, Any],
+    adult_verified: bool = False,
+    limit: int = 60,
+) -> list[Product]:
     query = (
         db.query(Product)
         .filter(
@@ -95,6 +104,7 @@ def search_candidate_products(db: Session, intent: dict[str, Any], limit: int = 
             Product.short_url != "",
         )
     )
+    query = apply_product_visibility_filter(query, adult_verified=adult_verified)
 
     tokens = intent.get("search_tokens", [])
     if tokens:
@@ -168,7 +178,6 @@ def build_product_block(role_label: str, product: Product, openid: str, *, slot:
     display_price = coupon_price if coupon_price > 0 else price
     link = build_product_link(product, openid, scene="wechat_reply", slot=slot)
     shop_name = getattr(product, "shop_name", None) or "店铺信息待补充"
-
     return (
         f"{role_label}\n"
         f"{title}\n"
@@ -184,15 +193,15 @@ def build_recommendation_text(selected: list[tuple[str, Product]], openid: str, 
         return get_copy("no_result_text") + "\n\n" + get_copy("category_gap_text")
 
     if intent.get("wants_low_price"):
-        intro = "我先偏向价格和到手价给你筛了一轮，再把高风险店铺去掉，给你挑了 3 个更值得看的："
+        intro = "我先偏向价格和到手价给你筛了一轮，再把高风险商品去掉，给你挑了 3 个更值得看的："
     elif intent.get("wants_quality"):
-        intro = "我先偏向质量、口碑和店铺稳定性给你筛了一轮，给你挑了 3 个更值得看的："
+        intro = "我先偏向质量、口碑和店铺稳定性给你筛了一轮，再把高风险商品去掉，给你挑了 3 个更值得看的："
     else:
-        intro = "我先按你的需求，从价格、口碑、店铺稳定性里筛了一轮，给你挑了 3 个更值得看的："
+        intro = "我先按你的需求，从价格、口碑、店铺稳定性里筛了一轮，再把高风险商品去掉，给你挑了 3 个更值得看的："
 
     blocks = []
     for idx, (role_label, product) in enumerate(selected, start=1):
-        blocks.append(f"{idx}. {build_product_block(role_label, product, openid, slot=idx)}")
+        blocks.append(f"{idx}.\n{build_product_block(role_label, product, openid, slot=idx)}")
 
     return f"{intro}\n\n" + "\n\n".join(blocks) + f"\n\n{get_copy('retry_hint_text')}"
 
@@ -202,12 +211,13 @@ def get_recommendation_reply(db: Session, openid: str, content: str) -> str:
     if not intent["shopping_intent"]:
         return get_copy("non_shopping_redirect_text")
 
-    candidates = search_candidate_products(db, intent, limit=60)
+    adult_verified = _resolve_adult_verified(db, openid)
+    candidates = search_candidate_products(db, intent, adult_verified=adult_verified, limit=60)
 
     if not candidates and intent.get("commodity"):
         fallback_intent = dict(intent)
         fallback_intent["search_tokens"] = [intent["commodity"]]
-        candidates = search_candidate_products(db, fallback_intent, limit=60)
+        candidates = search_candidate_products(db, fallback_intent, adult_verified=adult_verified, limit=60)
         intent = fallback_intent
 
     selected = select_three_products(candidates, intent)

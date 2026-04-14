@@ -17,6 +17,7 @@ from app.services.partner_program_config_service import (
     load_partner_share_copy,
 )
 from app.services.partner_visual_asset_service import build_partner_asset_bundle
+from app.services.product_compliance_service import assert_product_partner_share_allowed
 
 
 def _safe_text(value: Any) -> str:
@@ -35,6 +36,7 @@ def _price_text(product: Product) -> str:
 
 def _build_reason(product: Product) -> str:
     copy_rules = load_partner_share_copy()
+
     if getattr(product, "coupon_price", None) and getattr(product, "price", None):
         try:
             price = float(product.price or 0)
@@ -66,6 +68,7 @@ def _resolve_material_id(product: Product) -> str:
 def _resolve_rank_tags(product: Product, explicit_rank_tags: str | None) -> str | None:
     if explicit_rank_tags:
         return explicit_rank_tags
+
     candidates = []
     for field in ("ai_tags", "elite_name"):
         value = getattr(product, field, None)
@@ -100,6 +103,8 @@ def generate_partner_share_asset(
     if not product:
         raise ValueError("Product not found")
 
+    assert_product_partner_share_allowed(product)
+
     client = jd_client or JDUnionClient()
     response = client.promotion_bysubunionid_get(
         material_id=_resolve_material_id(product),
@@ -124,6 +129,7 @@ def generate_partner_share_asset(
     public_base_url = program_rules["public_base_url"].rstrip("/")
     buy_url = f"{public_base_url}/api/partner/assets/{asset_token}/buy"
     share_url = buy_url
+
     reason = _build_reason(product)
     price_text = _price_text(product)
 

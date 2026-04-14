@@ -259,3 +259,12 @@ P3 当前新增：
 - 聚合 profile / reward_overview / redemption_options / redemption_history
 - recent_assets / recent_shareable_products
 - monetization_closure 区块，前台可直接显示开通闭环
+
+
+## 25. 合规治理与年龄分流基础版（进行中）
+当前新增：
+- products: compliance_level / age_gate_required / allow_proactive_push / allow_partner_share / compliance_notes
+- users: adult_verified / adult_verified_at / verification_source
+- 商品入池自动合规打标
+- 晨推 / 对话 / 商品池 / 合伙人分享统一过滤
+- 先做 adult_verified 预留，不依赖微信直接返回年龄字段
