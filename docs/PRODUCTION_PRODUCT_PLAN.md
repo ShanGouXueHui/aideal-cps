@@ -250,3 +250,17 @@
 - 未校验用户：仅可见 normal
 - adult_verified 用户：可见 normal + restricted
 - 公众号默认分发面和晨推面只允许 normal
+
+
+## 23. adult_verified 最小闭环（V1）
+- 用户通过 H5 完成成年声明
+- 系统写入 adult_verified / adult_verified_at / verification_source
+- restricted 商品仅允许被动检索可见
+- 公众号默认推荐、晨推、合伙人分享仍只允许 normal
+
+
+## 24. 实名 / 年龄核验后置规划
+- 当前 self_declaration_h5 仅作占位，不作为 restricted 商品正式放开的唯一依据
+- 后续优先评估国家网络身份认证公共服务
+- 次选阿里云实人认证
+- 若接入实名能力，默认先用于年龄闸门，不直接改动 normal 主链路

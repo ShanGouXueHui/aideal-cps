@@ -1,0 +1,9 @@
+{
+  "public_base_url": "http://8.136.28.6",
+  "verification_source_default": "self_declaration_h5",
+  "min_age_notice": "仅限18岁及以上用户查看",
+  "success_message": "已完成成年声明。后续你可以查看限制级商品，但系统仍不会主动推荐这类商品。",
+  "failure_message": "未完成成年声明，当前不能查看限制级商品。",
+  "page_title": "智省优选｜成年声明",
+  "page_subtitle": "仅用于限制级商品被动查看，不会主动推荐此类商品。"
+}

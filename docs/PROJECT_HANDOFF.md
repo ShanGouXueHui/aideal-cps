@@ -268,3 +268,22 @@ P3 当前新增：
 - 商品入池自动合规打标
 - 晨推 / 对话 / 商品池 / 合伙人分享统一过滤
 - 先做 adult_verified 预留，不依赖微信直接返回年龄字段
+
+
+## 26. adult_verified 最小闭环（进行中）
+当前新增：
+- /api/user/adult-verification/status
+- /api/user/adult-verification/declare
+- /h5/adult-verify
+- 未声明成年用户：restricted 商品只返回声明引导，不直接给商品
+- 已声明成年用户：restricted 商品可被动查看，但仍不主动推荐、不做合伙人分享
+
+
+## 27. 实名 / 年龄核验后置规划
+读取：
+- docs/REALNAME_VERIFICATION_ROADMAP.md
+
+当前口径：
+- self_declaration_h5 仅为技术预留
+- 真正开放 restricted 商品前，应接入更强实名/年龄核验能力
+- 优先评估国家网络身份认证公共服务，其次阿里云实人认证

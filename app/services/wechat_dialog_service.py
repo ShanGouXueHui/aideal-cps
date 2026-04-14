@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 
 from app.models.product import Product
 from app.models.user import User
+from app.services.adult_verification_service import build_adult_verification_url
 from app.services.product_compliance_service import apply_product_visibility_filter
 from app.services.product_intent_service import parse_product_intent
 from app.services.recommendation_service import generate_reason
@@ -87,6 +88,35 @@ def _preference_score(product: Product, intent: dict[str, Any]) -> Decimal:
 def _resolve_adult_verified(db: Session, openid: str) -> bool:
     user = db.query(User).filter(User.wechat_openid == openid).first()
     return bool(getattr(user, "adult_verified", False)) if user else False
+
+
+def _restricted_candidates_exist(db: Session, intent: dict[str, Any]) -> bool:
+    query = (
+        db.query(Product)
+        .filter(
+            Product.status == "active",
+            Product.merchant_recommendable.is_(True),
+            Product.short_url.isnot(None),
+            Product.short_url != "",
+            Product.compliance_level == "restricted",
+        )
+    )
+
+    tokens = intent.get("search_tokens", [])
+    if tokens:
+        clauses = []
+        for token in tokens[:6]:
+            like = f"%{token}%"
+            clauses.extend(
+                [
+                    Product.title.ilike(like),
+                    Product.category_name.ilike(like),
+                    Product.shop_name.ilike(like),
+                ]
+            )
+        query = query.filter(or_(*clauses))
+
+    return query.first() is not None
 
 
 def search_candidate_products(
@@ -206,6 +236,16 @@ def build_recommendation_text(selected: list[tuple[str, Product]], openid: str, 
     return f"{intro}\n\n" + "\n\n".join(blocks) + f"\n\n{get_copy('retry_hint_text')}"
 
 
+def build_adult_gate_text(openid: str) -> str:
+    verify_url = build_adult_verification_url(openid)
+    return (
+        "这类商品属于限制级内容，系统不会主动推荐。\n"
+        "如你已年满18岁，可先完成成年声明，再继续被动查看：\n"
+        f"{verify_url}\n\n"
+        "完成后你可以重新发送商品名称，我再按规则帮你筛选。"
+    )
+
+
 def get_recommendation_reply(db: Session, openid: str, content: str) -> str:
     intent = parse_product_intent(content)
     if not intent["shopping_intent"]:
@@ -214,11 +254,17 @@ def get_recommendation_reply(db: Session, openid: str, content: str) -> str:
     adult_verified = _resolve_adult_verified(db, openid)
     candidates = search_candidate_products(db, intent, adult_verified=adult_verified, limit=60)
 
+    if not candidates and not adult_verified and _restricted_candidates_exist(db, intent):
+        return build_adult_gate_text(openid)
+
     if not candidates and intent.get("commodity"):
         fallback_intent = dict(intent)
         fallback_intent["search_tokens"] = [intent["commodity"]]
         candidates = search_candidate_products(db, fallback_intent, adult_verified=adult_verified, limit=60)
         intent = fallback_intent
+
+    if not candidates and not adult_verified and _restricted_candidates_exist(db, intent):
+        return build_adult_gate_text(openid)
 
     selected = select_three_products(candidates, intent)
     return build_recommendation_text(selected, openid, intent)
