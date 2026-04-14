@@ -44,7 +44,11 @@ def get_wechat_access_token() -> str:
 
 def create_wechat_menu(access_token: str, payload: dict) -> dict:
     url = f"https://api.weixin.qq.com/cgi-bin/menu/create?access_token={access_token}"
-    resp = requests.post(url, json=payload, timeout=15)
+    body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+    headers = {
+        "Content-Type": "application/json; charset=utf-8",
+    }
+    resp = requests.post(url, data=body, headers=headers, timeout=15)
     resp.raise_for_status()
     return resp.json()
 
