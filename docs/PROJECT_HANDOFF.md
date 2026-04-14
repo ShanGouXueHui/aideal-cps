@@ -347,3 +347,13 @@ P3 当前新增：
 - partner_center_entry_service.py：生成合伙人中心入口摘要
 - message_router.py：文本关键词/CLICK 事件触发“合伙人中心”时走动态摘要
 - 下一步可接积分、素材、分享商品、续费四个子入口
+
+
+## 36. 合伙人中心二级动作已接入
+- partner_center_action_service.py：
+  - 积分
+  - 素材
+  - 分享商品
+  - 续费
+- message_router.py：文本与 CLICK 事件都可直接触发二级动作
+- 下一步建议接“分享商品 + 商品名 -> 生成专属分享素材”

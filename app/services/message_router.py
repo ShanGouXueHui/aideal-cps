@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from app.core.db import SessionLocal
+from app.services.partner_center_action_service import route_partner_center_action
 from app.services.partner_center_entry_service import get_partner_center_entry_reply
 from app.services.today_recommend_service import get_today_recommend_reply
 from app.services.user_profile_service import (
@@ -47,23 +48,24 @@ def route(msg: dict) -> str:
 
         if event == "click":
             event_key = (msg.get("EventKey") or "").strip()
-            menu_key = resolve_menu_entry_key(event_key)
 
-            if menu_key == "today_recommend":
-                db = SessionLocal()
-                try:
+            db = SessionLocal()
+            try:
+                partner_action_reply = route_partner_center_action(db, to_user, event_key)
+                if partner_action_reply:
+                    return _build_reply(to_user, from_user, partner_action_reply)
+
+                menu_key = resolve_menu_entry_key(event_key)
+
+                if menu_key == "today_recommend":
                     text = get_today_recommend_reply(db, to_user)
-                finally:
-                    db.close()
-                return _build_reply(to_user, from_user, text)
+                    return _build_reply(to_user, from_user, text)
 
-            if menu_key == "partner_center":
-                db = SessionLocal()
-                try:
+                if menu_key == "partner_center":
                     text = get_partner_center_entry_reply(db, to_user)
-                finally:
-                    db.close()
-                return _build_reply(to_user, from_user, text)
+                    return _build_reply(to_user, from_user, text)
+            finally:
+                db.close()
 
             menu_reply = get_menu_entry_reply(event_key)
             if menu_reply:
@@ -74,30 +76,27 @@ def route(msg: dict) -> str:
 
     if msg_type == "text":
         content = (msg.get("Content") or "").strip()
-        menu_key = resolve_menu_entry_key(content)
-
-        if menu_key == "today_recommend":
-            db = SessionLocal()
-            try:
-                text = get_today_recommend_reply(db, to_user)
-            finally:
-                db.close()
-            return _build_reply(to_user, from_user, text)
-
-        if menu_key == "partner_center":
-            db = SessionLocal()
-            try:
-                text = get_partner_center_entry_reply(db, to_user)
-            finally:
-                db.close()
-            return _build_reply(to_user, from_user, text)
-
-        menu_reply = get_menu_entry_reply(content)
-        if menu_reply:
-            return _build_reply(to_user, from_user, menu_reply)
 
         db = SessionLocal()
         try:
+            partner_action_reply = route_partner_center_action(db, to_user, content)
+            if partner_action_reply:
+                return _build_reply(to_user, from_user, partner_action_reply)
+
+            menu_key = resolve_menu_entry_key(content)
+
+            if menu_key == "today_recommend":
+                text = get_today_recommend_reply(db, to_user)
+                return _build_reply(to_user, from_user, text)
+
+            if menu_key == "partner_center":
+                text = get_partner_center_entry_reply(db, to_user)
+                return _build_reply(to_user, from_user, text)
+
+            menu_reply = get_menu_entry_reply(content)
+            if menu_reply:
+                return _build_reply(to_user, from_user, menu_reply)
+
             update_user_profile_from_text(db, to_user, content)
 
             if content in HELP_KEYWORDS:
