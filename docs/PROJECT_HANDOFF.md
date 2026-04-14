@@ -380,3 +380,9 @@ P3 当前新增：
 - partner_material_bundle_service.py：素材包清单与文件解析
 - partner_materials.py：素材包清单接口 + 文件查看接口
 - partner_share_entry_service.py：分享商品回复已带素材包入口
+
+
+## 40. 公众号菜单同步能力已接入
+- wechat_menu_sync_service.py：负责读取菜单配置、获取 token、创建菜单、查询当前菜单
+- sync_wechat_menu.py：一键同步脚本
+- 下一步：在线上用真实公众号凭证执行一次菜单同步

@@ -1,0 +1,19 @@
+{
+  "button": [
+    {
+      "type": "click",
+      "name": "找商品",
+      "key": "找商品"
+    },
+    {
+      "type": "click",
+      "name": "今日推荐",
+      "key": "今日推荐"
+    },
+    {
+      "type": "click",
+      "name": "合伙人中心",
+      "key": "合伙人中心"
+    }
+  ]
+}
