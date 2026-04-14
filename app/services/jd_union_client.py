@@ -130,7 +130,11 @@ class JDUnionClient:
         response = requests.get(self.base_url, params=params, timeout=self.timeout_seconds)
         response.raise_for_status()
         data = response.json()
-        LOGGER.info("JD response method=%s top_keys=%s", method, list(data.keys()) if isinstance(data, dict) else type(data).__name__)
+        LOGGER.info(
+            "JD response method=%s top_keys=%s",
+            method,
+            list(data.keys()) if isinstance(data, dict) else type(data).__name__,
+        )
         return data
 
     def jingfen_query(
@@ -161,6 +165,37 @@ class JDUnionClient:
             goods_req.update(extra_goods_req)
         return self.request("jd.union.open.goods.jingfen.query", {"goodsReq": goods_req})
 
+    def goods_query(
+        self,
+        *,
+        keyword: str,
+        page_index: int = 1,
+        page_size: int = 12,
+        sort_name: str | None = None,
+        sort: str | None = None,
+        fields: str | None = None,
+        owner: str | None = None,
+        extra_goods_req: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        goods_req: dict[str, Any] = {
+            "keyword": keyword,
+            "pageIndex": page_index,
+            "pageSize": page_size,
+        }
+        if self.pid:
+            goods_req["pid"] = self.pid
+        if sort_name:
+            goods_req["sortName"] = sort_name
+        if sort:
+            goods_req["sort"] = sort
+        if fields:
+            goods_req["fields"] = fields
+        if owner:
+            goods_req["owner"] = owner
+        if extra_goods_req:
+            goods_req.update(extra_goods_req)
+        return self.request("jd.union.open.goods.query", {"goodsReq": goods_req})
+
     def promotion_bysubunionid_get(
         self,
         *,
@@ -181,6 +216,22 @@ class JDUnionClient:
         return self.request("jd.union.open.promotion.bysubunionid.get", {"promotionCodeReq": promotion_req})
 
 
+def _extract_list_like_data(query_result: dict[str, Any]) -> list[dict[str, Any]]:
+    data = query_result.get("data", [])
+    if isinstance(data, list):
+        return data
+    if isinstance(data, dict):
+        for key in ("data", "result", "goodsResp", "queryVo"):
+            value = data.get(key)
+            if isinstance(value, list):
+                return value
+            if isinstance(value, dict):
+                if "data" in value and isinstance(value["data"], list):
+                    return value["data"]
+                return [value]
+    return []
+
+
 def extract_jingfen_items(response: dict[str, Any]) -> list[dict[str, Any]]:
     outer = response.get("jd_union_open_goods_jingfen_query_responce", {})
     query_result = outer.get("queryResult", {})
@@ -189,30 +240,38 @@ def extract_jingfen_items(response: dict[str, Any]) -> list[dict[str, Any]]:
             query_result = json.loads(query_result)
         except json.JSONDecodeError:
             return []
-
     if not isinstance(query_result, dict):
         return []
-
     code = query_result.get("code")
     if code not in (200, "200", 0, "0", None):
         return []
-
-    data = query_result.get("data", [])
-    if isinstance(data, list):
-        return data
-
-    if isinstance(data, dict):
-        if "data" in data and isinstance(data["data"], list):
-            return data["data"]
-        if "jfGoodsResp" in data and isinstance(data["jfGoodsResp"], dict):
-            return [data["jfGoodsResp"]]
-
+    items = _extract_list_like_data(query_result)
+    if items:
+        return items
+    data = query_result.get("data", {})
+    if isinstance(data, dict) and "jfGoodsResp" in data and isinstance(data["jfGoodsResp"], dict):
+        return [data["jfGoodsResp"]]
     return []
+
+
+def extract_goods_query_items(response: dict[str, Any]) -> list[dict[str, Any]]:
+    outer = response.get("jd_union_open_goods_query_responce", {})
+    query_result = outer.get("queryResult", {})
+    if isinstance(query_result, str):
+        try:
+            query_result = json.loads(query_result)
+        except json.JSONDecodeError:
+            return []
+    if not isinstance(query_result, dict):
+        return []
+    code = query_result.get("code")
+    if code not in (200, "200", 0, "0", None):
+        return []
+    return _extract_list_like_data(query_result)
 
 
 def extract_promotion_payload(response: dict[str, Any]) -> dict[str, Any]:
     outer = response.get("jd_union_open_promotion_bysubunionid_get_responce", {})
-
     for key in ("getResult", "queryResult", "result"):
         value = outer.get(key)
         if isinstance(value, str):
@@ -224,5 +283,4 @@ def extract_promotion_payload(response: dict[str, Any]) -> dict[str, Any]:
                 return parsed
         if isinstance(value, dict):
             return value
-
     return outer

@@ -287,3 +287,38 @@ P3 当前新增：
 - self_declaration_h5 仅为技术预留
 - 真正开放 restricted 商品前，应接入更强实名/年龄核验能力
 - 优先评估国家网络身份认证公共服务，其次阿里云实人认证
+
+
+## 28. 真实搜索可用升级（进行中）
+当前新增：
+- live JD keyword search fallback
+- 本地商品池不足时，自动走 jd.union.open.goods.query
+- 仍保留合规过滤 / adult gate / 高风险过滤
+- 微信回复优先返回 3 个真实可买链接
+
+
+## 29. 商品池治理原则（新增）
+- 本地商品池不足时，可回退 JD 实时搜索
+- 但长期商用主模式应为：夜间后台刷新商品池 + 白天优先命中本地池
+- 后续需增加：
+  - 夜间补池任务
+  - 商品有效期/最后同步时间治理
+  - 过期商品清理与降权
+
+
+## 30. 夜间商品池刷新任务骨架（进行中）
+当前新增：
+- config/catalog_refresh_rules.json
+- catalog_refresh_service
+- run_nightly_catalog_refresh.py
+- 夜间精选榜刷新
+- 夜间关键词补池
+- 过期商品 inactive
+- 长时间失效且无引用商品 purge
+
+
+## 31. 夜间刷新 cron 调度
+- 安装脚本：scripts/install_catalog_refresh_cron.sh
+- 当前 cron：每日 03:15 执行 run_nightly_catalog_refresh.py
+- 使用 flock 防重入
+- 日志输出到 logs/catalog_refresh.log

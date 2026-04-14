@@ -10,6 +10,8 @@ from sqlalchemy.orm import Session
 from app.models.product import Product
 from app.models.user import User
 from app.services.adult_verification_service import build_adult_verification_url
+from app.services.jd_live_search_service import search_live_jd_products
+from app.services.live_search_config_service import load_live_search_rules
 from app.services.product_compliance_service import apply_product_visibility_filter
 from app.services.product_intent_service import parse_product_intent
 from app.services.recommendation_service import generate_reason
@@ -28,6 +30,20 @@ def _safe_decimal(value: Any) -> Decimal:
         return Decimal("0")
 
 
+def _safe_float(value: Any) -> float:
+    try:
+        return float(value or 0)
+    except Exception:
+        return 0.0
+
+
+def _safe_int(value: Any) -> int:
+    try:
+        return int(value or 0)
+    except Exception:
+        return 0
+
+
 def _short_title(title: str, max_len: int = 24) -> str:
     title = (title or "").strip()
     if len(title) <= max_len:
@@ -35,21 +51,27 @@ def _short_title(title: str, max_len: int = 24) -> str:
     return title[: max_len - 1] + "…"
 
 
-def _discount_amount(product: Product) -> Decimal:
-    price = _safe_decimal(getattr(product, "price", 0))
-    coupon_price = _safe_decimal(getattr(product, "coupon_price", 0))
+def _get_value(item: Any, key: str, default: Any = None) -> Any:
+    if isinstance(item, dict):
+        return item.get(key, default)
+    return getattr(item, key, default)
+
+
+def _discount_amount(item: Any) -> Decimal:
+    price = _safe_decimal(_get_value(item, "price", 0))
+    coupon_price = _safe_decimal(_get_value(item, "coupon_price", 0))
     discount = price - coupon_price
     if discount < 0:
         return Decimal("0")
     return discount
 
 
-def _token_match_count(product: Product, tokens: list[str]) -> int:
+def _token_match_count(item: Any, tokens: list[str]) -> int:
     haystack = " ".join(
         [
-            str(getattr(product, "title", "") or ""),
-            str(getattr(product, "category_name", "") or ""),
-            str(getattr(product, "shop_name", "") or ""),
+            str(_get_value(item, "title", "") or ""),
+            str(_get_value(item, "category_name", "") or ""),
+            str(_get_value(item, "shop_name", "") or ""),
         ]
     ).lower()
     count = 0
@@ -59,13 +81,13 @@ def _token_match_count(product: Product, tokens: list[str]) -> int:
     return count
 
 
-def _preference_score(product: Product, intent: dict[str, Any]) -> Decimal:
-    token_hits = Decimal(_token_match_count(product, intent.get("search_tokens", [])))
-    sales_volume = _safe_decimal(getattr(product, "sales_volume", 0) or 0)
-    commission_rate = _safe_decimal(getattr(product, "commission_rate", 0) or 0)
-    merchant_health = _safe_decimal(getattr(product, "merchant_health_score", 0) or 0)
-    coupon_price = _safe_decimal(getattr(product, "coupon_price", 0) or 0)
-    discount = _discount_amount(product)
+def _preference_score(item: Any, intent: dict[str, Any]) -> Decimal:
+    token_hits = Decimal(_token_match_count(item, intent.get("search_tokens", [])))
+    sales_volume = _safe_decimal(_get_value(item, "sales_volume", 0) or 0)
+    commission_rate = _safe_decimal(_get_value(item, "commission_rate", 0) or 0)
+    merchant_health = _safe_decimal(_get_value(item, "merchant_health_score", 0) or 0)
+    coupon_price = _safe_decimal(_get_value(item, "coupon_price", 0) or 0)
+    discount = _discount_amount(item)
 
     score = token_hits * Decimal("40")
     score += merchant_health * Decimal("0.5")
@@ -80,7 +102,7 @@ def _preference_score(product: Product, intent: dict[str, Any]) -> Decimal:
         score += merchant_health * Decimal("0.8")
     if intent.get("wants_sales"):
         score += sales_volume * Decimal("0.08")
-    if intent.get("wants_self_operated") and str(getattr(product, "owner", "") or "") == "g":
+    if intent.get("wants_self_operated") and str(_get_value(item, "owner", "") or "") == "g":
         score += Decimal("12")
     return score
 
@@ -161,34 +183,53 @@ def search_candidate_products(
     )
 
 
-def select_three_products(products: list[Product], intent: dict[str, Any]) -> list[tuple[str, Product]]:
-    if not products:
+def _item_identity(item: Any) -> tuple[str, str]:
+    item_id = _get_value(item, "id")
+    if item_id not in (None, ""):
+        return ("id", str(item_id))
+
+    jd_sku_id = _get_value(item, "jd_sku_id")
+    if jd_sku_id not in (None, ""):
+        return ("jd_sku_id", str(jd_sku_id))
+
+    short_url = _get_value(item, "short_url")
+    if short_url not in (None, ""):
+        return ("short_url", str(short_url))
+
+    title = _get_value(item, "title", "")
+    return ("title", str(title))
+
+
+def select_three_products(items: list[Any], intent: dict[str, Any]) -> list[tuple[str, Any]]:
+    if not items:
         return []
 
-    remaining = list(products)
-    selected: list[tuple[str, Product]] = []
+    remaining = list(items)
+    selected: list[tuple[str, Any]] = []
 
     best_fit = max(remaining, key=lambda p: _preference_score(p, intent))
     selected.append(("最符合你需求", best_fit))
-    remaining = [p for p in remaining if p.id != best_fit.id]
+    best_fit_key = _item_identity(best_fit)
+    remaining = [p for p in remaining if _item_identity(p) != best_fit_key]
 
     if remaining:
         best_sales = max(
             remaining,
             key=lambda p: (
-                _safe_decimal(getattr(p, "sales_volume", 0) or 0),
-                _safe_decimal(getattr(p, "merchant_health_score", 0) or 0),
+                _safe_decimal(_get_value(p, "sales_volume", 0) or 0),
+                _safe_decimal(_get_value(p, "merchant_health_score", 0) or 0),
             ),
         )
         selected.append(("下单热度更高", best_sales))
-        remaining = [p for p in remaining if p.id != best_sales.id]
+        best_sales_key = _item_identity(best_sales)
+        remaining = [p for p in remaining if _item_identity(p) != best_sales_key]
 
     if remaining:
         safest = max(
             remaining,
             key=lambda p: (
-                _safe_decimal(getattr(p, "merchant_health_score", 0) or 0),
-                _safe_decimal(getattr(p, "commission_rate", 0) or 0),
+                _safe_decimal(_get_value(p, "merchant_health_score", 0) or 0),
+                _safe_decimal(_get_value(p, "commission_rate", 0) or 0),
             ),
         )
         selected.append(("口碑与店铺更稳", safest))
@@ -196,18 +237,29 @@ def select_three_products(products: list[Product], intent: dict[str, Any]) -> li
     return selected
 
 
-def build_product_link(product: Product, openid: str, *, scene: str, slot: int) -> str:
-    return f"{BASE_URL}/api/promotion/redirect?wechat_openid={openid}&product_id={product.id}&scene={scene}&slot={slot}"
+def build_product_link(item: Any, openid: str, *, scene: str, slot: int) -> str:
+    product_id = _get_value(item, "id")
+    short_url = _get_value(item, "short_url")
+    product_url = _get_value(item, "product_url")
+
+    if product_id:
+        return f"{BASE_URL}/api/promotion/redirect?wechat_openid={openid}&product_id={product_id}&scene={scene}&slot={slot}"
+    return short_url or product_url or ""
 
 
-def build_product_block(role_label: str, product: Product, openid: str, *, slot: int) -> str:
-    reason = generate_reason(product)
-    title = _short_title(getattr(product, "title", "优选商品"))
-    coupon_price = _safe_decimal(getattr(product, "coupon_price", 0) or 0)
-    price = _safe_decimal(getattr(product, "price", 0) or 0)
+def build_product_block(role_label: str, item: Any, openid: str, *, slot: int) -> str:
+    title = _short_title(_get_value(item, "title", "优选商品"))
+    coupon_price = _safe_decimal(_get_value(item, "coupon_price", 0) or 0)
+    price = _safe_decimal(_get_value(item, "price", 0) or 0)
     display_price = coupon_price if coupon_price > 0 else price
-    link = build_product_link(product, openid, scene="wechat_reply", slot=slot)
-    shop_name = getattr(product, "shop_name", None) or "店铺信息待补充"
+    link = build_product_link(item, openid, scene="wechat_reply", slot=slot)
+    shop_name = _get_value(item, "shop_name", None) or "店铺信息待补充"
+
+    if isinstance(item, dict) and item.get("source") == "jd_live":
+        reason = item.get("reason") or "当前关键词实时检索命中，适合直接看看"
+    else:
+        reason = generate_reason(item)
+
     return (
         f"{role_label}\n"
         f"{title}\n"
@@ -218,20 +270,22 @@ def build_product_block(role_label: str, product: Product, openid: str, *, slot:
     )
 
 
-def build_recommendation_text(selected: list[tuple[str, Product]], openid: str, intent: dict[str, Any]) -> str:
+def build_recommendation_text(selected: list[tuple[str, Any]], openid: str, intent: dict[str, Any], *, source_label: str = "local") -> str:
     if not selected:
         return get_copy("no_result_text") + "\n\n" + get_copy("category_gap_text")
 
-    if intent.get("wants_low_price"):
-        intro = "我先偏向价格和到手价给你筛了一轮，再把高风险商品去掉，给你挑了 3 个更值得看的："
+    if source_label == "jd_live":
+        intro = "我刚刚按你的关键词做了实时检索，再把高风险商品过滤掉，先给你挑 3 个更值得看的："
+    elif intent.get("wants_low_price"):
+        intro = "我先偏向价格和到手价给你筛了一轮，再把高风险商品过滤掉，给你挑了 3 个更值得看的："
     elif intent.get("wants_quality"):
-        intro = "我先偏向质量、口碑和店铺稳定性给你筛了一轮，再把高风险商品去掉，给你挑了 3 个更值得看的："
+        intro = "我先偏向质量、口碑和店铺稳定性给你筛了一轮，再把高风险商品过滤掉，给你挑了 3 个更值得看的："
     else:
-        intro = "我先按你的需求，从价格、口碑、店铺稳定性里筛了一轮，再把高风险商品去掉，给你挑了 3 个更值得看的："
+        intro = "我先按你的需求，从价格、口碑、店铺稳定性里筛了一轮，再把高风险商品过滤掉，给你挑了 3 个更值得看的："
 
     blocks = []
-    for idx, (role_label, product) in enumerate(selected, start=1):
-        blocks.append(f"{idx}.\n{build_product_block(role_label, product, openid, slot=idx)}")
+    for idx, (role_label, item) in enumerate(selected, start=1):
+        blocks.append(f"{idx}.\n{build_product_block(role_label, item, openid, slot=idx)}")
 
     return f"{intro}\n\n" + "\n\n".join(blocks) + f"\n\n{get_copy('retry_hint_text')}"
 
@@ -246,28 +300,50 @@ def build_adult_gate_text(openid: str) -> str:
     )
 
 
+def _search_live_fallback(intent: dict[str, Any], *, adult_verified: bool) -> list[dict[str, Any]]:
+    query_text = intent.get("commodity") or " ".join(intent.get("search_tokens", []))
+    query_text = (query_text or "").strip()
+    if not query_text:
+        return []
+    try:
+        return search_live_jd_products(query_text=query_text, adult_verified=adult_verified)
+    except Exception:
+        return []
+
+
 def get_recommendation_reply(db: Session, openid: str, content: str) -> str:
     intent = parse_product_intent(content)
     if not intent["shopping_intent"]:
         return get_copy("non_shopping_redirect_text")
 
     adult_verified = _resolve_adult_verified(db, openid)
-    candidates = search_candidate_products(db, intent, adult_verified=adult_verified, limit=60)
+    local_candidates = search_candidate_products(db, intent, adult_verified=adult_verified, limit=60)
 
-    if not candidates and not adult_verified and _restricted_candidates_exist(db, intent):
+    if not local_candidates and not adult_verified and _restricted_candidates_exist(db, intent):
         return build_adult_gate_text(openid)
 
-    if not candidates and intent.get("commodity"):
+    if not local_candidates and intent.get("commodity"):
         fallback_intent = dict(intent)
         fallback_intent["search_tokens"] = [intent["commodity"]]
-        candidates = search_candidate_products(db, fallback_intent, adult_verified=adult_verified, limit=60)
+        local_candidates = search_candidate_products(db, fallback_intent, adult_verified=adult_verified, limit=60)
         intent = fallback_intent
 
-    if not candidates and not adult_verified and _restricted_candidates_exist(db, intent):
+    if not local_candidates and not adult_verified and _restricted_candidates_exist(db, intent):
         return build_adult_gate_text(openid)
 
-    selected = select_three_products(candidates, intent)
-    return build_recommendation_text(selected, openid, intent)
+    rules = load_live_search_rules()
+    if len(local_candidates) >= int(rules["local_result_threshold"]):
+        selected = select_three_products(local_candidates, intent)
+        return build_recommendation_text(selected, openid, intent, source_label="local")
+
+    live_candidates = _search_live_fallback(intent, adult_verified=adult_verified)
+
+    if live_candidates:
+        selected = select_three_products(live_candidates, intent)
+        return build_recommendation_text(selected, openid, intent, source_label="jd_live")
+
+    selected = select_three_products(local_candidates, intent)
+    return build_recommendation_text(selected, openid, intent, source_label="local")
 
 
 def get_help_reply() -> str:
