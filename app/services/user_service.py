@@ -1,4 +1,6 @@
 import secrets
+from datetime import datetime, timezone
+
 from sqlalchemy.orm import Session
 
 from app.core.db import SessionLocal
@@ -9,29 +11,35 @@ def generate_subunionid() -> str:
     return "wx_" + secrets.token_hex(8)
 
 
+def get_or_create_user_by_openid_db(db: Session, openid: str, nickname: str | None = None) -> User:
+    user = db.query(User).filter(User.wechat_openid == openid).first()
+    if user:
+        if nickname and not user.nickname:
+            user.nickname = nickname
+            db.flush()
+        return user
+
+    while True:
+        subunionid = generate_subunionid()
+        exists = db.query(User).filter(User.subunionid == subunionid).first()
+        if not exists:
+            break
+
+    user = User(
+        wechat_openid=openid,
+        nickname=nickname,
+        subunionid=subunionid,
+        first_subscribe_at=datetime.now(timezone.utc),
+    )
+    db.add(user)
+    db.flush()
+    return user
+
+
 def get_or_create_user_by_openid(openid: str, nickname: str | None = None) -> User:
     db: Session = SessionLocal()
     try:
-        user = db.query(User).filter(User.wechat_openid == openid).first()
-        if user:
-            if nickname and not user.nickname:
-                user.nickname = nickname
-                db.commit()
-                db.refresh(user)
-            return user
-
-        while True:
-            subunionid = generate_subunionid()
-            exists = db.query(User).filter(User.subunionid == subunionid).first()
-            if not exists:
-                break
-
-        user = User(
-            wechat_openid=openid,
-            nickname=nickname,
-            subunionid=subunionid,
-        )
-        db.add(user)
+        user = get_or_create_user_by_openid_db(db, openid, nickname=nickname)
         db.commit()
         db.refresh(user)
         return user
@@ -57,6 +65,5 @@ def get_or_create_test_user(db: Session) -> User:
         wechat_unionid=None,
     )
     db.add(user)
-    db.commit()
-    db.refresh(user)
+    db.flush()
     return user

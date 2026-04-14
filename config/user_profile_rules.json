@@ -1,0 +1,22 @@
+{
+  "score_caps": {
+    "price_sensitive_score": 10,
+    "quality_sensitive_score": 10,
+    "sales_sensitive_score": 10,
+    "self_operated_sensitive_score": 10
+  },
+  "text_weights": {
+    "shopping_intent": 1,
+    "commodity": 2,
+    "wants_low_price": 2,
+    "wants_quality": 2,
+    "wants_sales": 2,
+    "wants_self_operated": 2
+  },
+  "click_weights": {
+    "category": 1,
+    "price_sensitive": 1,
+    "quality_sensitive": 1,
+    "self_operated_sensitive": 1
+  }
+}

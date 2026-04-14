@@ -1,5 +1,5 @@
 from app.core.db import SessionLocal
-from app.services.user_service import get_or_create_user_by_openid
+from app.services.user_profile_service import record_subscribe_event, update_user_profile_from_text
 from app.services.wechat_dialog_service import (
     get_help_reply,
     get_recommendation_reply,
@@ -16,22 +16,26 @@ def route(msg):
     from_user = msg.get("ToUserName")
     msg_type = (msg.get("MsgType") or "").lower()
 
-    if to_user:
-        get_or_create_user_by_openid(to_user)
-
     if msg_type == "event":
         event = (msg.get("Event") or "").lower()
-        if event == "subscribe":
+        if event == "subscribe" and to_user:
+            db = SessionLocal()
+            try:
+                record_subscribe_event(db, to_user)
+            finally:
+                db.close()
             return build_text_response(to_user, from_user, get_welcome_reply())
         return ""
 
-    if msg_type == "text":
+    if msg_type == "text" and to_user:
         content = (msg.get("Content") or "").strip()
-        if content in HELP_KEYWORDS:
-            return build_text_response(to_user, from_user, get_help_reply())
-
         db = SessionLocal()
         try:
+            update_user_profile_from_text(db, to_user, content)
+
+            if content in HELP_KEYWORDS:
+                return build_text_response(to_user, from_user, get_help_reply())
+
             text = get_recommendation_reply(db, to_user, content)
             return build_text_response(to_user, from_user, text)
         finally:

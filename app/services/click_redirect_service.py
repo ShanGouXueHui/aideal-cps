@@ -9,6 +9,7 @@ from app.models.click_log import ClickLog
 from app.models.product import Product
 from app.models.user import User
 from app.services.jd_union_workflow_service import JDUnionWorkflowService
+from app.services.user_profile_service import update_user_profile_from_click
 
 
 def _truncate(value: str | None, max_len: int) -> str | None:
@@ -99,6 +100,9 @@ def create_click_redirect(
         referer=_truncate(referer, 1000),
     )
     db.add(click_log)
+
+    update_user_profile_from_click(db, user, product)
+
     db.commit()
     db.refresh(click_log)
 

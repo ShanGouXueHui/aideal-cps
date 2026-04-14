@@ -144,3 +144,14 @@
   - final_url
   - user_agent
   - referer
+
+
+## 13. 用户画像与每日推荐（V1）
+- 用户画像先做基础偏好分：
+  - price_sensitive_score
+  - quality_sensitive_score
+  - sales_sensitive_score
+  - self_operated_sensitive_score
+- preferred_categories 先存 JSON
+- 每日 8:00 先生成推荐候选，不直接下发
+- 推荐优先按用户偏好品类与偏好模式排序
