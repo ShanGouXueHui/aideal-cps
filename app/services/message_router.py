@@ -3,6 +3,7 @@ from __future__ import annotations
 from app.core.db import SessionLocal
 from app.services.partner_center_action_service import route_partner_center_action
 from app.services.partner_center_entry_service import get_partner_center_entry_reply
+from app.services.partner_share_entry_service import get_partner_share_product_request_reply
 from app.services.today_recommend_service import get_today_recommend_reply
 from app.services.user_profile_service import (
     record_subscribe_event,
@@ -79,6 +80,10 @@ def route(msg: dict) -> str:
 
         db = SessionLocal()
         try:
+            share_product_reply = get_partner_share_product_request_reply(db, to_user, content)
+            if share_product_reply:
+                return _build_reply(to_user, from_user, share_product_reply)
+
             partner_action_reply = route_partner_center_action(db, to_user, content)
             if partner_action_reply:
                 return _build_reply(to_user, from_user, partner_action_reply)
