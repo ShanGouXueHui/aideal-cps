@@ -386,3 +386,167 @@ P3 当前新增：
 - wechat_menu_sync_service.py：负责读取菜单配置、获取 token、创建菜单、查询当前菜单
 - sync_wechat_menu.py：一键同步脚本
 - 下一步：在线上用真实公众号凭证执行一次菜单同步
+
+<!-- BEGIN: WECHAT_MP_STAGE_2026_04_15 -->
+# WeChat MP阶段交接（2026-04-15）
+
+## 一、当前项目与环境
+- 项目：AIdeal CPS（智省优选）
+- GitHub仓库：`git@github.com:ShanGouXueHui/aideal-cps.git`
+- 当前主开发分支：`feat/wechat-official-account`
+- 服务器主机：`iZbp116q1d1ucbio1ms235Z`
+- 项目路径：`/home/deploy/projects/aideal-cps`
+- Python虚拟环境：`/home/deploy/projects/aideal-cps/venv`
+- systemd服务：`aideal.service`
+- 启动方式：`uvicorn main:app --host 0.0.0.0 --port 8000`
+- Nginx临时域名：`aidealfy.kindafeelfy.cn`
+- 正式域名：`aidealfy.cn`（ICP备案完成后切回）
+- 官网静态站仓库：`https://github.com/ShanGouXueHui/aideal-site`
+
+## 二、微信公众号当前已打通状态
+### 1）消息推送
+- 微信后台消息推送 URL 已成功配置
+- 当前生效 URL：`https://aidealfy.kindafeelfy.cn/wechat/callback`
+- 当前回调真实后端路由：`/wechat/callback`
+- 注意：不是 `/api/wechat/callback`
+
+### 2）加密模式
+- 当前模式：**明文模式**
+- `.env` 中已配置：
+  - `WECHAT_TOKEN`
+  - `WECHAT_ENCODING_AES_KEY`
+  - `WECHAT_MSG_ENCRYPT_MODE=plaintext`
+- 说明：AES Key 只是已存储，**服务端还未实现 AES 解密/加密回复**，因此现在不能切“安全模式”。
+
+### 3）HTTPS
+- `aidealfy.kindafeelfy.cn` 已通过 `certbot --webroot` 成功签发证书
+- 证书路径：
+  - `/etc/letsencrypt/live/aidealfy.kindafeelfy.cn/fullchain.pem`
+  - `/etc/letsencrypt/live/aidealfy.kindafeelfy.cn/privkey.pem`
+- 已启用 HTTPS
+- 自动续期已由 certbot 配置完成
+
+### 4）Nginx站点
+- 站点配置文件：
+  - `/etc/nginx/sites-enabled/aidealfy-kindafeelfy.conf`
+- 当前专用 access log：
+  - `/var/log/nginx/aidealfy_kindafeelfy_access.log`
+
+## 三、菜单与事件路由当前状态
+### 1）当前菜单
+- 找商品
+- 今日推荐
+- 合伙人中心
+
+### 2）菜单已验证打通
+已经通过结构化日志验证三条菜单链路：
+
+- `找商品` -> `find_product_entry`
+- `今日推荐` -> `today_recommend`
+- `合伙人中心` -> `partner_center_entry`
+
+### 3）结构化日志已生效
+当前 `app/api/wechat.py` 已加入微信入站/出站日志，示例日志：
+
+- `wechat inbound | msg_type=event event=CLICK event_key=找商品 ... matched_handler=find_product_entry`
+- `wechat outbound | ...`
+
+已验证可在以下位置观察：
+- 应用日志：`sudo journalctl -u aideal.service -f --no-pager`
+- Nginx日志：`sudo tail -f /var/log/nginx/aidealfy_kindafeelfy_access.log`
+
+## 四、当前已经确认的业务结论
+1. 菜单点击、文本消息、微信回调、HTTPS链路都已经正常
+2. 现在不是“服务端没打通”的问题，而是进入**体验优化/转化优化**阶段
+3. 当前“今日推荐”“找商品”仍偏文本型，下一阶段应升级为**图优先、点击直达京东**
+4. 用户明确要求：
+   - **优先图，不优先长文本**
+   - **不要先跳海报页/H5，再跳京东**
+   - **消息里直接展示图**
+   - **用户点击后尽量直接去 JD 短链**
+   - 目标是减少点击层级，提高转化率
+
+## 五、下一阶段明确任务（新对话继续做）
+### 任务A：将“找商品”改为图优先承接
+目标：
+- 菜单点击“找商品”后，不只是提示用户输入
+- 直接返回 1 条带图的推荐卡片
+- 点击卡片直达 JD 短链
+- 同时保留一句轻量引导：用户也可以直接回复“卫生纸 / 洗衣液 / 宝宝湿巾 / 京东自营”等关键词
+
+### 任务B：将“今日推荐”改为图优先承接
+目标：
+- 不再优先纯文本
+- 优先返回带图消息
+- 点击直达 JD 短链
+- 推荐理由必须由 **JD真实数据** 驱动
+
+### 任务C：推荐理由模板化
+必须遵循：
+- **事实层**：只能使用 JD 真实字段，如：
+  - `sales_volume`
+  - `price`
+  - `coupon_price`
+  - `short_url`
+  - `image_url`
+  - 店铺名 / 是否自营 / 商家质量分（若已入库）
+- **话术层**：可以用心理学包装，但不能虚构事实
+- 禁止伪造：
+  - “京东Top XX”
+  - “销量第X名”
+  - “五星好评X人”
+  - “近10天销量增长”
+  - 任何接口未提供的排名/时效/人数
+
+可用心理触发方向：
+- 从众
+- 损失厌恶
+- 占便宜
+- 效率/决策减负
+- 体面/品质感
+- 共情
+
+### 任务D：图的来源策略
+目标优先级：
+1. **优先已有可直接展示的海报图/物料图**
+2. 如果现有物料是 SVG 且不能稳定作为公众号图文封面，则退回使用 JD 商品主图
+3. 点击仍然直接去 JD，不走海报页
+
+### 任务E：安全收尾
+高优先级后续任务：
+- 封禁 `/.git` 等敏感路径
+- 修复未知路径过宽返回 200 的问题
+- 收紧 Nginx 静态站与动态服务边界
+
+## 六、继续开发时必须遵循的沟通与工程要求
+- 中文交流
+- 职业化、直接、结构化表达
+- 给 **copy-paste 可执行命令**
+- **不要要求手工改文件**
+- Linux 命令里**不要使用 `set -e`**
+- 默认通过 **Codex + GitHub docs** 续接上下文
+- 新对话开始时，先读：
+  - `docs/PROJECT_HANDOFF.md`
+  - `docs/PRODUCTION_PRODUCT_PLAN.md`
+- 以 GitHub 仓库内容为准，而不是只依赖聊天短期上下文
+
+## 七、当前服务端关键定位点
+- 微信回调入口：`app/api/wechat.py`
+- 菜单事件总路由：`app/services/message_router.py`
+- 今日推荐：`app/services/today_recommend_service.py`
+- 找商品推荐主流程：`app/services/wechat_dialog_service.py`
+- 菜单配置：`config/wechat_mp_menu.json`
+- 菜单同步脚本：`scripts/sync_wechat_menu.py`
+- 微信图文/文本回复能力：`app/services/wechat_service.py`
+
+## 八、已验证命令（可复用）
+### 查看菜单事件日志
+- `sudo journalctl -u aideal.service -f --no-pager`
+- `sudo tail -f /var/log/nginx/aidealfy_kindafeelfy_access.log`
+
+### 菜单同步（注意先导出环境变量）
+- `export WECHAT_MP_APP_ID="$(grep '^WECHAT_MP_APP_ID=' .env | cut -d= -f2-)"`
+- `export WECHAT_MP_APP_SECRET="$(grep '^WECHAT_MP_APP_SECRET=' .env | cut -d= -f2-)"`
+- `PYTHONPATH=/home/deploy/projects/aideal-cps python -m scripts.sync_wechat_menu`
+
+<!-- END: WECHAT_MP_STAGE_2026_04_15 -->

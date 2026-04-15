@@ -13,3 +13,6 @@ venv/
 .pytest_cache/
 alembic/versions/*.pycdata/jd_cache/
 scratch/
+data/
+*.bak_*
+.env.bak_*
