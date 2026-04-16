@@ -92,3 +92,19 @@
 - JD workflow 改为请求期懒加载，避免开发环境因 `JD_PID` 缺失导致整个 FastAPI app 无法导入
 - 推荐链路与 JD 链路都要求避免 import-time side effects
 
+
+## 2026-04-17 运行时单一事实来源修复
+- 不再让推荐链路依赖已删除的 `wechat_recommend_h5_service.py`
+- `wechat_recommend_runtime_service.py` 成为推荐文本、H5详情、更多同类产品的唯一真实实现
+- 本次修复明确只依赖当前稳定 `Product` 基础字段：
+  - `price`
+  - `coupon_price`
+  - `sales_volume`
+  - `merchant_health_score`
+  - `merchant_recommendable`
+  - `short_url`
+  - `status`
+  - `category_name`
+  - `shop_name`
+- 不再把 `purchase_price` / `basis_price` / `comment_count` / `allow_proactive_push` 当作线上稳定运行前提
+- 目标是先恢复公众号链路稳定，再单独推进 exact-price 模型与迁移的一致化
