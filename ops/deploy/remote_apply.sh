@@ -139,6 +139,18 @@ finally:
 PY
 
 echo
+echo "===== REMOTE RELEASE MARKER ====="
+mkdir -p .release
+cat > .release/current.json <<EOF
+{
+  "deployed_at": "$(date '+%Y-%m-%d %H:%M:%S %z')",
+  "source_branch": "${SOURCE_BRANCH:-unknown}",
+  "source_commit": "${SOURCE_COMMIT:-unknown}"
+}
+EOF
+cat .release/current.json
+
+echo
 echo "===== REMOTE RESTART ====="
 if sudo -n systemctl restart "$SERVICE_NAME" >/dev/null 2>&1; then
   echo "restart_mode=sudo_nopasswd"
