@@ -1,12 +1,16 @@
 from __future__ import annotations
 
 import json
+import logging
+import threading
 import time
 from pathlib import Path
 
 import requests
 
 from app.core.config import settings
+
+logger = logging.getLogger(__name__)
 
 TOKEN_CACHE_PATH = Path("data/wechat_runtime/access_token.json")
 TOKEN_URL = "https://api.weixin.qq.com/cgi-bin/token"
@@ -47,7 +51,7 @@ def _fetch_access_token() -> str:
             "appid": app_id,
             "secret": app_secret,
         },
-        timeout=10,
+        timeout=8,
     )
     data = resp.json()
     token = data.get("access_token")
@@ -76,7 +80,7 @@ def fanout_text_messages(wechat_openid: str, texts: list[str]) -> list[dict]:
     token = get_access_token()
     results: list[dict] = []
 
-    for text in payload_texts:
+    for idx, text in enumerate(payload_texts, start=1):
         resp = requests.post(
             f"{CUSTOM_SEND_URL}?access_token={token}",
             json={
@@ -84,12 +88,36 @@ def fanout_text_messages(wechat_openid: str, texts: list[str]) -> list[dict]:
                 "msgtype": "text",
                 "text": {"content": text},
             },
-            timeout=10,
+            timeout=8,
         )
         try:
             data = resp.json()
         except Exception:
-            data = {"http_status": resp.status_code, "text": resp.text[:500]}
+            data = {
+                "http_status": resp.status_code,
+                "text": resp.text[:500],
+            }
         results.append(data)
+        logger.info(
+            "wechat custom fanout | openid_hash=%s idx=%s errcode=%s errmsg=%s",
+            wechat_openid[-8:] if wechat_openid else "",
+            idx,
+            data.get("errcode"),
+            data.get("errmsg"),
+        )
 
     return results
+
+
+def fanout_text_messages_async(wechat_openid: str, texts: list[str]) -> None:
+    def _worker():
+        try:
+            fanout_text_messages(wechat_openid, texts)
+        except Exception as exc:
+            logger.exception("wechat custom fanout failed | exc=%s", exc)
+
+    threading.Thread(
+        target=_worker,
+        name="wechat-custom-fanout",
+        daemon=True,
+    ).start()

@@ -18,7 +18,7 @@ from app.services.wechat_menu_service import (
     get_menu_entry_reply,
     resolve_menu_entry_key,
 )
-from app.services.wechat_passive_fanout_service import fanout_text_messages
+from app.services.wechat_passive_fanout_service import fanout_text_messages_async
 from app.services.wechat_recommend_runtime_service import (
     get_find_product_entry_text_reply,
     get_today_recommend_text_reply,
@@ -93,7 +93,7 @@ def route(msg: dict) -> str:
                             extra_replies = segments[1:]
                             if extra_replies:
                                 try:
-                                    fanout_text_messages(to_user, extra_replies)
+                                    fanout_text_messages_async(to_user, extra_replies)
                                 except Exception:
                                     pass
                             return _build_reply(to_user, from_user, passive_reply)
