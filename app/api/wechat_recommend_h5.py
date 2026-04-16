@@ -5,7 +5,7 @@ from fastapi.responses import HTMLResponse
 
 from app.core.db import SessionLocal
 from app.models.product import Product
-from app.services.wechat_recommend_h5_service import get_product_by_id, render_product_h5
+from app.services.wechat_recommend_runtime_service import get_product_by_id, render_product_h5
 
 router = APIRouter()
 
@@ -47,7 +47,7 @@ async def recommend_more_like_this_page(
             except Exception:
                 pass
 
-            detail_link = f"/api/h5/recommend/{int(x.id)}?scene=more_like_this&slot={idx}"
+            detail_link = f"/api/h5/recommend/{int(x.id)}?scene=more_like_this&slot={idx}&wechat_openid={wechat_openid}"
             buy_link = (
                 f"/api/promotion/redirect?"
                 f"wechat_openid={wechat_openid}&product_id={int(x.id)}&scene=more_like_this&slot={idx}"
@@ -99,12 +99,13 @@ async def recommend_detail_page(
     product_id: int,
     scene: str = Query(default=""),
     slot: str = Query(default=""),
+    wechat_openid: str = Query(default=""),
 ):
     db = SessionLocal()
     try:
         product = get_product_by_id(db, int(product_id))
         if not product:
             return HTMLResponse("<h3>商品不存在</h3>", status_code=404)
-        return HTMLResponse(render_product_h5(product, scene=scene, slot=slot))
+        return HTMLResponse(render_product_h5(product, scene=scene, slot=slot, wechat_openid=wechat_openid))
     finally:
         db.close()

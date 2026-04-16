@@ -18,14 +18,29 @@ from app.services.wechat_menu_service import (
     get_menu_entry_reply,
     resolve_menu_entry_key,
 )
+from app.services.wechat_recommend_runtime_service import (
+    get_find_product_entry_text_reply,
+    get_today_recommend_text_reply,
+    has_find_entry_product,
+    has_today_recommend_products,
+)
 from app.services.wechat_service import build_text_response
 
 
 HELP_KEYWORDS = {"帮助", "怎么用", "如何使用", "使用说明", "help"}
+FIND_PRODUCT_KEYS = {"find_product", "find_product_entry", "找商品"}
+TODAY_RECOMMEND_KEYS = {"today_recommend", "今日推荐"}
+PARTNER_CENTER_KEYS = {"partner_center", "partner_center_entry", "合伙人中心"}
 
 
 def _build_reply(to_user: str, from_user: str, text: str) -> str:
     return build_text_response(to_user, from_user, text)
+
+
+def _normalize_menu_key(raw_key: str) -> str:
+    raw_key = (raw_key or "").strip()
+    resolved = resolve_menu_entry_key(raw_key)
+    return (resolved or raw_key or "").strip()
 
 
 def route(msg: dict) -> str:
@@ -49,6 +64,7 @@ def route(msg: dict) -> str:
 
         if event == "click":
             event_key = (msg.get("EventKey") or "").strip()
+            menu_key = _normalize_menu_key(event_key)
 
             db = SessionLocal()
             try:
@@ -56,13 +72,26 @@ def route(msg: dict) -> str:
                 if partner_action_reply:
                     return _build_reply(to_user, from_user, partner_action_reply)
 
-                menu_key = resolve_menu_entry_key(event_key)
+                if menu_key in FIND_PRODUCT_KEYS:
+                    if has_find_entry_product(db):
+                        text = get_find_product_entry_text_reply(db, to_user)
+                        if text:
+                            return _build_reply(to_user, from_user, text)
+                    return _build_reply(
+                        to_user,
+                        from_user,
+                        "你可以直接回复想买的商品，比如：卫生纸、洗衣液、宝宝湿巾、京东自营。",
+                    )
 
-                if menu_key == "today_recommend":
+                if menu_key in TODAY_RECOMMEND_KEYS:
+                    if has_today_recommend_products(db):
+                        text = get_today_recommend_text_reply(db, to_user)
+                        if text:
+                            return _build_reply(to_user, from_user, text)
                     text = get_today_recommend_reply(db, to_user)
                     return _build_reply(to_user, from_user, text)
 
-                if menu_key == "partner_center":
+                if menu_key in PARTNER_CENTER_KEYS:
                     text = get_partner_center_entry_reply(db, to_user)
                     return _build_reply(to_user, from_user, text)
             finally:
@@ -71,12 +100,14 @@ def route(msg: dict) -> str:
             menu_reply = get_menu_entry_reply(event_key)
             if menu_reply:
                 return _build_reply(to_user, from_user, menu_reply)
+
             return _build_reply(to_user, from_user, "已收到，你也可以直接告诉我想买什么。")
 
         return ""
 
     if msg_type == "text":
         content = (msg.get("Content") or "").strip()
+        normalized_key = _normalize_menu_key(content)
 
         db = SessionLocal()
         try:
@@ -88,13 +119,26 @@ def route(msg: dict) -> str:
             if partner_action_reply:
                 return _build_reply(to_user, from_user, partner_action_reply)
 
-            menu_key = resolve_menu_entry_key(content)
+            if normalized_key in FIND_PRODUCT_KEYS:
+                if has_find_entry_product(db):
+                    text = get_find_product_entry_text_reply(db, to_user)
+                    if text:
+                        return _build_reply(to_user, from_user, text)
+                return _build_reply(
+                    to_user,
+                    from_user,
+                    "你可以直接回复想买的商品，比如：卫生纸、洗衣液、宝宝湿巾、京东自营。",
+                )
 
-            if menu_key == "today_recommend":
+            if normalized_key in TODAY_RECOMMEND_KEYS:
+                if has_today_recommend_products(db):
+                    text = get_today_recommend_text_reply(db, to_user)
+                    if text:
+                        return _build_reply(to_user, from_user, text)
                 text = get_today_recommend_reply(db, to_user)
                 return _build_reply(to_user, from_user, text)
 
-            if menu_key == "partner_center":
+            if normalized_key in PARTNER_CENTER_KEYS:
                 text = get_partner_center_entry_reply(db, to_user)
                 return _build_reply(to_user, from_user, text)
 
@@ -109,6 +153,7 @@ def route(msg: dict) -> str:
 
             text = get_recommendation_reply(db, to_user, content)
             return _build_reply(to_user, from_user, text)
+
         finally:
             db.close()
 

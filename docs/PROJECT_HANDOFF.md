@@ -663,3 +663,21 @@ P3 当前新增：
 3. service 层只做业务
 4. 避免在单一大文件中继续追加 override block
 
+
+## 2026-04-16 22:41:07 稳定运行时模块切换完成
+
+### 新增稳定模块
+- `app/services/wechat_recommend_runtime_service.py`
+
+### 本轮目的
+不再让线上活跃入口继续依赖 `app/services/wechat_recommend_h5_service.py` 中多轮 override 后的“最后覆盖定义”，而是切到新的稳定运行时模块。
+
+### 已切换入口
+- `app/services/message_router.py`
+- `app/api/wechat_recommend_h5.py`
+
+### 当前策略
+- 旧 `wechat_recommend_h5_service.py` 暂时保留，仅作为历史参考
+- 新需求和后续修复优先落在 `wechat_recommend_runtime_service.py`
+- 后续再安排旧大文件清理和模块拆分收尾
+
