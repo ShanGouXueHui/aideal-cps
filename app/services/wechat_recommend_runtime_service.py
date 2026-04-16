@@ -388,33 +388,92 @@ def _commercial_reason(product: Product) -> str:
     return "它的核心不是噱头，而是帮用户减少比较动作：先看详情，再按实时页面决定是否下单，会更省时间。"
 
 
+
+def _wechat_safe_title(product: Product, limit: int = 22) -> str:
+    raw = ((getattr(product, "title", "") or "").strip()).replace("\n", " ")
+    if len(raw) <= limit:
+        return raw
+    return raw[: max(1, limit - 1)] + "…"
+
+
+def _compact_price_line(product: Product, ultra: bool = False) -> str:
+    line = _format_price_line(product)
+    line = line.replace("💰 到手参考：", "💰 ")
+    line = line.replace("优惠价", "券后")
+    line = line.replace("京东官网价", "原价")
+    line = line.replace("｜立省", "｜省")
+    if ultra:
+        line = line.replace("｜原价", " / 原价")
+    return line
+
+
+def _compact_reason(product: Product) -> str:
+    title = (getattr(product, "title", "") or "")
+    saved_amount = 0.0
+    for key in ("saved_amount", "discount_amount", "saved_price"):
+        val = getattr(product, key, None)
+        try:
+            if val is not None:
+                saved_amount = float(val)
+                break
+        except Exception:
+            pass
+
+    comments = 0
+    for key in ("comments", "comment_count"):
+        val = getattr(product, key, None)
+        try:
+            if val is not None:
+                comments = int(val)
+                break
+        except Exception:
+            pass
+
+    shop_name = (getattr(product, "shop_name", "") or "")
+    lower_title = title.lower()
+
+    if saved_amount >= 20:
+        return "价差更明显，先点开看实时页更容易判断值不值。"
+    if comments >= 10000:
+        return "评论沉淀更足，适合想省筛选时间时直接看。"
+    if "自营" in title or "旗舰" in shop_name:
+        return "店铺确定性更高，适合想省心下单的人。"
+    if "儿童" in title or "宝宝" in title or "母婴" in lower_title:
+        return "这类商品更偏省心决策，先看详情再下单更稳。"
+    return "信息已经比较完整，适合先看详情后再决定。"
+
+
 def get_today_recommend_text_reply(db: Session, wechat_openid: str) -> str | None:
     batch = _select_today_batch(db, wechat_openid=wechat_openid)
     if not batch:
-        return "当前可推荐商品还在整理中，稍后再试。"
+        return None
 
-    _record_scene_exposures(
-        db,
-        openid_hash=_openid_key(wechat_openid),
-        scene="today_recommend",
-        products=batch,
-    )
+    lines: list[str] = ["🔥 今日推荐 3 个："]
+    for idx, product in enumerate(batch, start=1):
+        lines.extend([
+            f"【{idx}】{_wechat_safe_title(product, 22)}",
+            _compact_price_line(product),
+            f"✨ 理由：{_compact_reason(product)}",
+            f"📄 图文详情：{_detail_url(product, scene='today_recommend', slot=idx, wechat_openid=wechat_openid)}",
+            f"🛒 下单链接：{_promotion_url(product, scene='today_recommend', slot=idx, wechat_openid=wechat_openid)}",
+        ])
 
-    lines = ["🔥 今日推荐 3 个，可直接购买：", ""]
-    for idx, product in enumerate(batch, 1):
-        lines.extend(
-            [
-                f"{getattr(product, 'title', '')}",
-                f"💰 到手参考：{_format_price_line(product)}",
-                f"✨ 推荐理由：{_commercial_reason(product)}",
-                f"📄 {LABEL_DETAIL}：{_detail_url(product, scene='today_recommend', slot=idx, wechat_openid=wechat_openid)}",
-                f"🛒 {LABEL_BUY}：{_promotion_url(product, wechat_openid=wechat_openid, scene='today_recommend', slot=idx)}",
-                f"🔎 {LABEL_MORE}：{_more_like_this_url(product, scene='today_recommend', slot=idx, wechat_openid=wechat_openid)}",
-                "",
-            ]
-        )
-    lines.append("👉 再点一次“今日推荐”，继续下一组 3 个。")
-    return "\n".join(lines).strip()
+    text = "
+".join(lines)
+
+    # 微信被动回复做保守限长，避免 temporarily unavailable
+    if len(text.encode("utf-8")) > 1450:
+        lines = ["🔥 今日推荐 3 个："]
+        for idx, product in enumerate(batch, start=1):
+            lines.extend([
+                f"【{idx}】{_wechat_safe_title(product, 16)}",
+                _compact_price_line(product, ultra=True),
+                f"🛒 下单：{_promotion_url(product, scene='today_recommend', slot=idx, wechat_openid=wechat_openid)}",
+            ])
+        text = "
+".join(lines)
+
+    return text
 
 
 def get_find_product_entry_text_reply(db: Session, wechat_openid: str) -> str | None:
