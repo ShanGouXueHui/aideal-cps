@@ -84,7 +84,15 @@ async def callback(request: Request, signature: str = "", timestamp: str = "", n
         _preview_text(content),
     )
 
-    resp = route(msg)
+    resp = route(
+        to_user=from_user,
+        from_user=_safe_str(msg.get("ToUserName")),
+        msg_type=msg_type,
+        content=content,
+        event=event,
+        event_key=event_key,
+        raw_message=msg,
+    )
 
     logger.info(
         "wechat outbound | msg_type=%s event=%s event_key=%s openid_hash=%s matched_handler=%s reply_preview=%s",
