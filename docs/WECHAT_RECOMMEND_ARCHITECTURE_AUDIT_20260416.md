@@ -86,3 +86,9 @@
   - `app/api/wechat_recommend_h5.py`
   - `app/api/promotion.py`
 
+
+## 补充收口（移除 import-time JD 副作用）
+- `app/api/jd.py` 不再在模块导入阶段实例化 `JDUnionWorkflowService()`
+- JD workflow 改为请求期懒加载，避免开发环境因 `JD_PID` 缺失导致整个 FastAPI app 无法导入
+- 推荐链路与 JD 链路都要求避免 import-time side effects
+

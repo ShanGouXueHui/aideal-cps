@@ -11,7 +11,9 @@ from app.services.jd_union_workflow_service import JDUnionWorkflowService
 
 router = APIRouter(prefix="/jd", tags=["jd"])
 
-workflow = JDUnionWorkflowService()
+def _workflow() -> JDUnionWorkflowService:
+    return JDUnionWorkflowService()
+
 cache = JDUnionCacheService()
 
 
@@ -33,7 +35,7 @@ def jd_goods_top(
         if cached is not None:
             return {"source": "cache", "rows": cached}
 
-    rows = workflow.query_goods(
+    rows = _workflow().query_goods(
         elite_id=elite_id,
         page_index=page_index,
         page_size=page_size,
@@ -57,7 +59,7 @@ def jd_goods_top_with_links(
         if cached is not None:
             return {"source": "cache", "rows": cached}
 
-    rows = workflow.query_goods_with_links(
+    rows = _workflow().query_goods_with_links(
         elite_id=elite_id,
         limit=limit,
         page_index=page_index,
@@ -70,7 +72,7 @@ def jd_goods_top_with_links(
 
 @router.post("/promotion/short-link")
 def jd_promotion_short_link(payload: ShortLinkRequest):
-    short_url = workflow.build_short_link(payload.material_id)
+    short_url = _workflow().build_short_link(payload.material_id)
     if not short_url:
         raise HTTPException(status_code=502, detail="failed to generate short link")
     return {

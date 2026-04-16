@@ -9,7 +9,7 @@ from urllib.parse import quote_plus
 
 BASE_DIR = Path(__file__).resolve().parents[2]
 RULES_PATH = BASE_DIR / "config" / "wechat_recommend_rules.json"
-H5_SERVICE_PATH = BASE_DIR / "app" / "services" / "wechat_recommend_h5_service.py"
+RUNTIME_SERVICE_PATH = BASE_DIR / "app" / "services" / "wechat_recommend_runtime_service.py"
 
 DEFAULT_PUBLIC_BASE_URL = "https://aidealfy.kindafeelfy.cn"
 
@@ -206,10 +206,10 @@ DEFAULT_BASE_URL = get_public_base_url()
 
 
 def _requested_exports_from_h5_service() -> set[str]:
-    if not H5_SERVICE_PATH.exists():
+    if not RUNTIME_SERVICE_PATH.exists():
         return set()
     try:
-        tree = ast.parse(H5_SERVICE_PATH.read_text(encoding="utf-8"))
+        tree = ast.parse(RUNTIME_SERVICE_PATH.read_text(encoding="utf-8"))
     except Exception:
         return set()
 
