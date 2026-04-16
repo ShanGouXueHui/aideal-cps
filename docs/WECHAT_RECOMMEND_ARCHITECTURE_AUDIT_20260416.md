@@ -118,3 +118,26 @@
 - `今日推荐` 菜单点击时，被动回复必须优先快速返回
 - 第 2/3 条推荐不能阻塞在公众号回调线程内同步发送
 - 已改为后台线程异步调用客服消息接口，避免微信侧出现 `temporarily unavailable`
+
+## 2026-04-17 transport freeze boundary
+
+本轮以生产机实际运行代码为准，从 `prod-recover-20260417_032541` 回收以下核心文件，并作为当前通信层冻结边界：
+
+- `app/api/wechat.py`
+- `app/services/message_router.py`
+- `app/services/wechat_service.py`
+- `app/services/wechat_recommend_runtime_service.py`
+
+冻结原则：
+
+1. **微信通信层冻结**  
+   回调验签、XML 解析、被动回复 XML 生成、菜单点击路由签名，这些属于通信边界，不再承载业务试验性改动。
+
+2. **京东通信层冻结**  
+   JD API 调用、签名、转链、基础请求协议，也视为通信边界；后续业务变更不得直接改坏 JD 通信模块。
+
+3. **业务功能与通信解耦**  
+   今日推荐、找商品、H5详情、推荐理由、排序策略、文案、素材样式，必须放在独立业务服务里调整；不得再把业务逻辑揉进 `wechat.py` / `message_router.py` / `wechat_service.py`。
+
+4. **后续优化方向**  
+   `今日推荐` 后续可升级为 news/单图文卡片/H5承接，但必须在冻结边界之外实现，不得再次破坏微信回调与被动回复基础链路。

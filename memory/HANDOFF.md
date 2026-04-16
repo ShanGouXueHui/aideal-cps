@@ -48,3 +48,17 @@
 4. 固化推荐配置、文案配置、路径配置
 5. 建立开发机到生产机的稳定部署链路
 6. 持续更新 docs，保证 GitHub 成为长期记忆源
+
+## 2026-04-17 transport freeze boundary
+
+当前已确认并固化的通信层冻结边界：
+
+- 微信：`app/api/wechat.py`、`app/services/message_router.py`、`app/services/wechat_service.py`
+- 推荐运行时主入口：`app/services/wechat_recommend_runtime_service.py`
+- JD 通信模块：后续视为冻结边界，不允许业务需求直接侵入协议层
+
+执行原则：
+
+- 先保证通信链路稳定，再做推荐内容优化
+- 任何“菜单点了 unavailable / 回调 500 / XML 异常 / route 签名漂移”都优先检查是否有人改动冻结边界
+- 后续“今日推荐改 news / 图文卡片 / H5承接”属于业务层重构，不属于通信层

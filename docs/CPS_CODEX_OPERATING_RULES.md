@@ -35,3 +35,13 @@
 - 通过 GitHub 分支提交
 - 再走生产部署
 - 不允许直接在生产机裸改作为长期方案
+
+## 2026-04-17 transport freeze boundary
+
+Codex/后续协作必须遵守：
+
+- 不直接重构或重写 `app/api/wechat.py`
+- 不直接重构或重写 `app/services/message_router.py`
+- 不直接重构或重写 `app/services/wechat_service.py`
+- 不直接改坏 JD 通信协议层
+- 业务改动默认落在独立 service / renderer / builder，不得把业务逻辑塞回通信层
