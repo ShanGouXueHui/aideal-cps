@@ -75,3 +75,14 @@
 - `app/services/wechat_recommend_h5_service.py` 降级为兼容导入壳，不再承载业务逻辑
 - 后续所有推荐逻辑修改，必须只改 runtime_service
 
+
+## 最终收敛决策（runtime 单一真源）
+- 删除 `app/services/wechat_recommend_h5_service.py`
+- 推荐文本、图文详情、更多同类产品、按用户轮次去重，全部以 `app/services/wechat_recommend_runtime_service.py` 为唯一真实实现
+- 任何新功能不得再落到旧 H5 service 文件
+- 后续若出现推荐链路问题，只排查：
+  - `app/services/wechat_recommend_runtime_service.py`
+  - `app/services/message_router.py`
+  - `app/api/wechat_recommend_h5.py`
+  - `app/api/promotion.py`
+
