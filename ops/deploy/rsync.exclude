@@ -11,3 +11,4 @@ data/
 scratch/
 static/
 ops/deploy/targets.env
+ops/deploy/targets.local.env

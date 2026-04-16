@@ -1,16 +1,32 @@
 #!/usr/bin/env bash
 cd "$(dirname "$0")/../.." || exit 1
 
-TARGETS_FILE="${TARGETS_FILE:-ops/deploy/targets.env}"
-if [ ! -f "$TARGETS_FILE" ]; then
-  echo "missing targets file: $TARGETS_FILE"
+if [ -n "${TARGETS_FILE:-}" ]; then
+  CFG="$TARGETS_FILE"
+elif [ -f "ops/deploy/targets.local.env" ]; then
+  CFG="ops/deploy/targets.local.env"
+elif [ -f "ops/deploy/targets.env" ]; then
+  CFG="ops/deploy/targets.env"
+else
+  echo "missing deploy target file"
   exit 1
 fi
 
-. "$TARGETS_FILE"
+. "$CFG"
 
 SSH_TARGET="${TARGET_SSH_HOST:-$TARGET_HOST}"
 MODE="${1:-}"
+
+if [ -z "${SSH_TARGET:-}" ] || [ -z "${TARGET_USER:-}" ] || [ -z "${TARGET_PATH:-}" ] || [ -z "${TARGET_SERVICE:-}" ]; then
+  echo "deploy target config incomplete"
+  echo "CFG=$CFG"
+  echo "TARGET_SSH_HOST=${TARGET_SSH_HOST:-}"
+  echo "TARGET_HOST=${TARGET_HOST:-}"
+  echo "TARGET_USER=${TARGET_USER:-}"
+  echo "TARGET_PATH=${TARGET_PATH:-}"
+  echo "TARGET_SERVICE=${TARGET_SERVICE:-}"
+  exit 1
+fi
 
 echo "===== LOCAL CHECK ====="
 echo "user=$(whoami)"
@@ -20,6 +36,7 @@ git status --short
 
 echo
 echo "===== TARGET ====="
+echo "cfg=$CFG"
 echo "ssh_target=$SSH_TARGET"
 echo "user=$TARGET_USER"
 echo "path=$TARGET_PATH"

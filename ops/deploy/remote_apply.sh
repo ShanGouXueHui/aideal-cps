@@ -1,15 +1,31 @@
 #!/usr/bin/env bash
 cd "$(dirname "$0")/../.." || exit 1
 
-TARGETS_FILE="${TARGETS_FILE:-ops/deploy/targets.env}"
-if [ ! -f "$TARGETS_FILE" ]; then
-  echo "missing targets file: $TARGETS_FILE"
+if [ -n "${TARGETS_FILE:-}" ]; then
+  CFG="$TARGETS_FILE"
+elif [ -f "ops/deploy/targets.local.env" ]; then
+  CFG="ops/deploy/targets.local.env"
+elif [ -f "ops/deploy/targets.env" ]; then
+  CFG="ops/deploy/targets.env"
+else
+  echo "missing deploy target file"
   exit 1
 fi
 
-. "$TARGETS_FILE"
+. "$CFG"
 
 SSH_TARGET="${TARGET_SSH_HOST:-$TARGET_HOST}"
+
+if [ -z "${SSH_TARGET:-}" ] || [ -z "${TARGET_USER:-}" ] || [ -z "${TARGET_PATH:-}" ] || [ -z "${TARGET_SERVICE:-}" ]; then
+  echo "deploy target config incomplete"
+  echo "CFG=$CFG"
+  echo "TARGET_SSH_HOST=${TARGET_SSH_HOST:-}"
+  echo "TARGET_HOST=${TARGET_HOST:-}"
+  echo "TARGET_USER=${TARGET_USER:-}"
+  echo "TARGET_PATH=${TARGET_PATH:-}"
+  echo "TARGET_SERVICE=${TARGET_SERVICE:-}"
+  exit 1
+fi
 
 ssh "$SSH_TARGET" "PROJECT_PATH='$TARGET_PATH' SERVICE_NAME='$TARGET_SERVICE' bash -s" <<'REMOTE'
 echo "===== REMOTE BASIC ====="
@@ -79,16 +95,11 @@ PROBE_PRODUCT_ID=$(
 ./venv/bin/python - <<'PY'
 from app.core.db import SessionLocal
 from app.models.product import Product
-
 db = SessionLocal()
 try:
     p = (
         db.query(Product)
-        .filter(
-            Product.is_active == True,
-            Product.short_url.isnot(None),
-            Product.short_url != "",
-        )
+        .filter(Product.is_active == True, Product.short_url.isnot(None), Product.short_url != "")
         .order_by(Product.id.asc())
         .first()
     )
@@ -109,7 +120,6 @@ from app.services.wechat_recommend_runtime_service import (
     get_today_recommend_text_reply,
     get_find_product_entry_text_reply,
 )
-
 db = SessionLocal()
 try:
     t = get_today_recommend_text_reply(db, "deploy_probe_runtime")
@@ -130,15 +140,8 @@ PY
 
 echo
 echo "===== REMOTE RESTART ====="
-RESTART_DONE=0
 if sudo -n systemctl restart "$SERVICE_NAME" >/dev/null 2>&1; then
-  RESTART_DONE=1
   echo "restart_mode=sudo_nopasswd"
-else
-  echo "restart_requires_manual_sudo=true"
-fi
-
-if [ "$RESTART_DONE" = "1" ]; then
   sleep 2
 
   echo
@@ -162,5 +165,7 @@ if [ "$RESTART_DONE" = "1" ]; then
     echo "===== REMOTE REDIRECT PROBE ====="
     curl -sS -o /dev/null -D - "http://127.0.0.1:8000/api/promotion/redirect?wechat_openid=deploy_probe_runtime&product_id=${PROBE_PRODUCT_ID}&scene=today_recommend&slot=1" | sed -n '1,8p'
   fi
+else
+  echo "restart_requires_manual_sudo=true"
 fi
 REMOTE
