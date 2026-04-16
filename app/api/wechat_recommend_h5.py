@@ -1,26 +1,21 @@
+from __future__ import annotations
+
 from fastapi import APIRouter, Query
-from fastapi.responses import HTMLResponse, PlainTextResponse
+from fastapi.responses import HTMLResponse
 
 from app.core.db import SessionLocal
+from app.models.product import Product
 from app.services.wechat_recommend_h5_service import get_product_by_id, render_product_h5
 
 router = APIRouter()
 
 
-@router.get("/api/h5/recommend/{product_id}", response_class=HTMLResponse)
-async def recommend_detail_page(product_id: int, scene: str = Query(default=""), slot: str = Query(default="")):
-    db = SessionLocal()
-    try:
-        product = get_product_by_id(db, product_id)
-        if not product:
-            return PlainTextResponse("商品不存在或已下架", status_code=404)
-        return HTMLResponse(render_product_h5(product, scene=scene, slot=slot))
-    finally:
-        db.close()
-
-
 @router.get("/api/h5/recommend/more-like-this")
-async def recommend_more_like_this_page(product_id: int, scene: str = Query(default=""), slot: str = Query(default="")):
+async def recommend_more_like_this_page(
+    product_id: int,
+    scene: str = Query(default=""),
+    slot: str = Query(default=""),
+):
     db = SessionLocal()
     try:
         base_product = get_product_by_id(db, int(product_id))
@@ -34,22 +29,35 @@ async def recommend_more_like_this_page(product_id: int, scene: str = Query(defa
             .filter(Product.short_url.isnot(None), Product.short_url != "")
             .filter(Product.id != int(product_id))
             .filter(Product.category_name == base_product.category_name)
+            .order_by(Product.comment_count.desc(), Product.sales_volume.desc(), Product.id.desc())
             .limit(12)
             .all()
         )
 
-        items = []
+        cards = []
         for x in rows[:3]:
-            items.append(f"""
-            <div style="background:#fff;border-radius:16px;padding:16px;margin:12px 0;box-shadow:0 4px 16px rgba(15,23,42,.06);">
-              <div style="font-size:16px;font-weight:700;line-height:1.6;color:#111827;">{x.title}</div>
-              <div style="margin-top:10px;color:#475569;line-height:1.8;">到手参考：{getattr(x, 'purchase_price', '')}</div>
-              <div style="margin-top:12px;">
-                <a href="/api/h5/recommend/{int(x.id)}?scene=more_like_this&slot=1" style="display:inline-block;padding:10px 14px;border-radius:10px;background:#eef2ff;color:#3730a3;text-decoration:none;margin-right:8px;">图文详情</a>
-                <a href="/api/promotion/redirect?product_id={int(x.id)}&scene=more_like_this&slot=1" style="display:inline-block;padding:10px 14px;border-radius:10px;background:#dcfce7;color:#166534;text-decoration:none;">下单链接</a>
-              </div>
-            </div>
-            """)
+            purchase_price = getattr(x, "purchase_price", None)
+            basis_price = getattr(x, "basis_price", None)
+            price_text = "以下单页实时信息为准"
+            try:
+                if purchase_price is not None and basis_price is not None:
+                    delta = float(basis_price) - float(purchase_price)
+                    price_text = f"优惠价￥{float(purchase_price):.2f}｜京东官网价￥{float(basis_price):.2f}｜立省￥{delta:.2f}"
+            except Exception:
+                pass
+
+            cards.append(
+                f"""
+                <div style="background:#fff;border-radius:16px;padding:16px;margin:12px 0;box-shadow:0 4px 16px rgba(15,23,42,.06);">
+                  <div style="font-size:16px;font-weight:700;line-height:1.6;color:#111827;">{x.title}</div>
+                  <div style="margin-top:10px;color:#475569;line-height:1.8;">💰 到手参考：{price_text}</div>
+                  <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap;">
+                    <a href="/api/h5/recommend/{int(x.id)}?scene=more_like_this&slot=1" style="display:inline-block;padding:10px 14px;border-radius:10px;background:#eef2ff;color:#3730a3;text-decoration:none;">图文详情</a>
+                    <a href="/api/promotion/redirect?product_id={int(x.id)}&scene=more_like_this&slot=1" style="display:inline-block;padding:10px 14px;border-radius:10px;background:#dcfce7;color:#166534;text-decoration:none;">下单链接</a>
+                  </div>
+                </div>
+                """
+            )
 
         html = f"""
         <!doctype html>
@@ -69,11 +77,27 @@ async def recommend_more_like_this_page(product_id: int, scene: str = Query(defa
           <div class="wrap">
             <div class="title">更多同类产品</div>
             <div class="sub">基于当前商品分类，补充 3 个可继续对比的同类商品。</div>
-            {''.join(items) if items else '<div style="margin-top:16px;">当前还没有更多同类商品。</div>'}
+            {''.join(cards) if cards else '<div style="margin-top:16px;">当前还没有更多同类商品。</div>'}
           </div>
         </body>
         </html>
         """
         return HTMLResponse(html)
+    finally:
+        db.close()
+
+
+@router.get("/api/h5/recommend/{product_id}")
+async def recommend_detail_page(
+    product_id: int,
+    scene: str = Query(default=""),
+    slot: str = Query(default=""),
+):
+    db = SessionLocal()
+    try:
+        product = get_product_by_id(db, int(product_id))
+        if not product:
+            return HTMLResponse("<h3>商品不存在</h3>", status_code=404)
+        return HTMLResponse(render_product_h5(product, scene=scene, slot=slot))
     finally:
         db.close()

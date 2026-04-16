@@ -1607,3 +1607,68 @@ def get_find_product_entry_text_reply(db, wechat_openid: str) -> str | None:
         "👉 也可以直接回复你想买的商品，比如：卫生纸、洗衣液、宝宝湿巾。",
     ]).strip()
 # <<< COMMERCIAL_TEMPLATE_OVERRIDE_END <<<
+
+# >>> H5_RENDER_SAFE_OVERRIDE_BEGIN >>>
+import html
+
+def render_product_h5(product, *, scene: str = "", slot: str = "") -> str:
+    title = html.escape(str(getattr(product, "title", "") or "商品详情"))
+    shop_name = html.escape(str(getattr(product, "shop_name", "") or ""))
+    category_name = html.escape(str(getattr(product, "category_name", "") or ""))
+    image_url = html.escape(str(getattr(product, "image_url", "") or ""))
+    detail_url = _detail_url(product, scene=scene or "today_recommend", slot=slot or 1)
+    buy_url = _promotion_url(
+        product,
+        wechat_openid="h5_detail_openid",
+        scene=scene or "today_recommend",
+        slot=int(slot or 1),
+    )
+    more_url = _more_like_this_url(product, scene=scene or "today_recommend", slot=int(slot or 1))
+    price_text = html.escape(_format_price_line(product))
+    reason_text = html.escape(_commercial_reason(product))
+
+    image_block = ""
+    if image_url:
+        image_block = f'<img src="{image_url}" alt="{title}" style="width:100%;border-radius:18px;display:block;background:#fff;" />'
+
+    return f"""
+    <!doctype html>
+    <html lang="zh-CN">
+    <head>
+      <meta charset="utf-8" />
+      <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+      <title>{title}</title>
+      <style>
+        body{{margin:0;background:#f8fafc;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;color:#0f172a;}}
+        .wrap{{max-width:760px;margin:0 auto;padding:18px 16px 40px;}}
+        .card{{background:#fff;border-radius:20px;padding:18px;box-shadow:0 6px 24px rgba(15,23,42,.06);}}
+        .title{{font-size:22px;font-weight:800;line-height:1.5;margin:14px 0 0;}}
+        .meta{{margin-top:10px;color:#64748b;line-height:1.8;font-size:14px;}}
+        .price{{margin-top:14px;padding:14px;border-radius:14px;background:#fff7ed;color:#9a3412;line-height:1.8;font-weight:700;}}
+        .reason{{margin-top:14px;padding:14px;border-radius:14px;background:#f8fafc;line-height:1.8;color:#334155;}}
+        .actions{{margin-top:18px;display:flex;gap:10px;flex-wrap:wrap;}}
+        .btn{{display:inline-block;padding:12px 16px;border-radius:12px;text-decoration:none;font-weight:700;}}
+        .btn-detail{{background:#eef2ff;color:#3730a3;}}
+        .btn-buy{{background:#dcfce7;color:#166534;}}
+        .btn-more{{background:#fff7ed;color:#c2410c;}}
+      </style>
+    </head>
+    <body>
+      <div class="wrap">
+        <div class="card">
+          {image_block}
+          <div class="title">{title}</div>
+          <div class="meta">店铺：{shop_name or "暂无"}<br/>分类：{category_name or "暂无"}</div>
+          <div class="price">💰 到手参考：{price_text}</div>
+          <div class="reason">✨ 推荐理由：{reason_text}</div>
+          <div class="actions">
+            <a class="btn btn-detail" href="{detail_url}">图文详情</a>
+            <a class="btn btn-buy" href="{buy_url}">下单链接</a>
+            <a class="btn btn-more" href="{more_url}">更多同类产品</a>
+          </div>
+        </div>
+      </div>
+    </body>
+    </html>
+    """
+# <<< H5_RENDER_SAFE_OVERRIDE_END <<<
