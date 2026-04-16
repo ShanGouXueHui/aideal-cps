@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import importlib
 
 from app.core.db import SessionLocal
 from app.services.partner_center_action_service import route_partner_center_action
@@ -31,6 +32,38 @@ from app.services.wechat_recommend_runtime_service import (
 from app.services.wechat_service import build_text_response
 
 logger = logging.getLogger("uvicorn.error")
+
+
+def _get_today_recommend_segments(db, wechat_openid: str) -> list[str]:
+    runtime = importlib.import_module("app.services.wechat_recommend_runtime_service")
+    candidate_names = [
+        "get_today_recommend_reply_segments",
+        "build_today_recommend_segments",
+        "get_today_recommend_segments",
+    ]
+    for name in candidate_names:
+        func = getattr(runtime, name, None)
+        if callable(func):
+            try:
+                result = func(db, wechat_openid)
+            except TypeError:
+                result = func(db=db, wechat_openid=wechat_openid)
+            segments = [str(x).strip() for x in (result or []) if str(x or "").strip()]
+            if segments:
+                return segments
+
+    fallback = getattr(runtime, "get_today_recommend_text_reply", None)
+    if callable(fallback):
+        try:
+            text = fallback(db, wechat_openid)
+        except TypeError:
+            text = fallback(db=db, wechat_openid=wechat_openid)
+        text = str(text or "").strip()
+        if text:
+            return [text]
+
+    return []
+
 
 
 HELP_KEYWORDS = {"帮助", "怎么用", "如何使用", "使用说明", "help"}
@@ -80,6 +113,40 @@ def route(msg: dict) -> str:
 
                 if menu_key in FIND_PRODUCT_KEYS:
                     if has_find_entry_product(db):
+
+    if msg_type == "event" and event == "CLICK" and event_key == "今日推荐":
+        db = SessionLocal()
+        try:
+            segments = _get_today_recommend_segments(db, to_user)
+        finally:
+            db.close()
+
+        if not segments:
+            logger.warning(
+                "today_recommend hard branch empty | openid_hash=%s",
+                (to_user or "")[-8:],
+            )
+            return build_text_response(
+                to_user,
+                from_user,
+                "今天的推荐还在准备中，稍后再试一下～",
+            )
+
+        passive_text = segments[0]
+        extra_texts = [x for x in segments[1:] if str(x or "").strip()]
+
+        logger.info(
+            "today_recommend direct fanout branch | openid_hash=%s passive_len=%s extra_count=%s",
+            (to_user or "")[-8:],
+            len(passive_text),
+            len(extra_texts),
+        )
+
+        if extra_texts:
+            fanout_text_messages_async(to_user, extra_texts)
+
+        return build_text_response(to_user, from_user, passive_text)
+
                         text = get_find_product_entry_text_reply(db, to_user)
                         if text:
                             return _build_reply(to_user, from_user, text)
