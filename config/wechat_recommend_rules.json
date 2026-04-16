@@ -1,0 +1,115 @@
+{
+  "pool_filters": {
+    "require_exact_discount": true,
+    "require_basis_price_type": 1,
+    "require_short_url": true,
+    "require_merchant_recommendable": true,
+    "min_good_comments_share": 95,
+    "min_comment_count": 500,
+    "min_exact_delta": 5,
+    "min_sales_volume": 10,
+    "exclude_title_keywords": [
+      "药",
+      "胶囊",
+      "滴耳液",
+      "平喘",
+      "流量卡",
+      "电话卡",
+      "激活码",
+      "维修",
+      "上门服务",
+      "换屏",
+      "安装服务"
+    ]
+  },
+  "diversity": {
+    "same_user_dedup_days": 30,
+    "avoid_same_brand_in_batch": true,
+    "avoid_same_category_in_batch": true,
+    "batch_size": 3
+  },
+  "ranking": {
+    "weights": {
+      "discount_rate": 0.25,
+      "delta_amount": 0.1,
+      "sales_volume": 0.35,
+      "comment_count": 0.2,
+      "good_comment_rate": 0.1
+    },
+    "caps": {
+      "delta_amount_max": 50
+    }
+  },
+  "copy": {
+    "today_intro": "🔥 今日推荐 3 个，可直接购买：",
+    "next_batch_hint": "👉 再点一次“今日推荐”，继续下一组 3 个。",
+    "fallback": "📦 当前高置信优惠池暂时没有更合适的新商品，先翻翻历史记录，或稍后再来。",
+    "title_prefix_today": "今天先给你挑 3 个当前更值得直接下单的商品：",
+    "title_prefix_find": "先给你放 1 个当前更适合直接看的商品：",
+    "today_empty_hint": "当前推荐池暂时没有合适商品，先翻翻历史记录，或稍后再来。",
+    "today_next_hint": "再点一次“今日推荐”，继续下一组。",
+    "find_hint": "你可以直接回复想买的商品，比如：卫生纸、洗衣液、宝宝湿巾、京东自营。"
+  },
+  "urls": {
+    "public_base_url": "https://aidealfy.kindafeelfy.cn",
+    "promotion_redirect_path": "/api/promotion/redirect",
+    "recommend_h5_path_template": "/api/h5/recommend/{product_id}"
+  },
+  "text_labels": {
+    "price": "到手参考",
+    "shop": "店铺",
+    "reason": "理由",
+    "buy": "下单链接",
+    "detail": "图文详情"
+  },
+  "dedup": {
+    "days": 7,
+    "strict_no_repeat_before_exhaustion": true,
+    "allow_partial_batch_when_pool_exhausted": true
+  },
+  "today_recommend": {
+    "scene": "today_recommend",
+    "batch_size": 3,
+    "dedup_days": 0,
+    "fallback_enabled": true,
+    "fallback_limit": 24,
+    "price_refresh_before_recommend": true,
+    "strict_no_repeat_before_exhaustion": true,
+    "allow_partial_batch_when_pool_exhausted": true
+  },
+  "pool_rules": {
+    "require_basis_price_type": 1,
+    "require_short_url": true
+  },
+  "dedupe_policy": {
+    "mode": "cycle_pool",
+    "scope": "per_user_per_scene",
+    "window_days": 0,
+    "restart_after_exhaustion": true,
+    "strict_no_repeat_before_exhaustion": true,
+    "allow_partial_batch_when_pool_exhausted": true
+  },
+  "find_product_entry": {
+    "scene": "find_product_entry",
+    "batch_size": 1,
+    "fallback_enabled": true,
+    "fallback_limit": 12,
+    "price_refresh_before_recommend": true,
+    "dedup_days": 0,
+    "strict_no_repeat_before_exhaustion": true,
+    "allow_partial_batch_when_pool_exhausted": true
+  },
+  "url": {
+    "promotion_redirect_path_template": "/api/promotion/redirect?wechat_openid={wechat_openid}&product_id={product_id}&scene={scene}&slot={slot}",
+    "recommend_h5_path_template": "/api/h5/recommend/{product_id}?scene={scene}&slot={slot}",
+    "more_like_this_path_template": "/api/h5/recommend/more-like-this?product_id={product_id}&scene={scene}&slot={slot}"
+  },
+  "labels": {
+    "buy": "下单链接",
+    "detail": "图文详情",
+    "price": "到手参考",
+    "reason": "推荐理由",
+    "more_like_this": "更多同类产品"
+  },
+  "same_user_dedup_days": 0
+}
