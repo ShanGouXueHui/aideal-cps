@@ -15,7 +15,7 @@ logger = logging.getLogger("uvicorn.error")
 TOKEN_CACHE_PATH = Path("data/wechat_runtime/access_token.json")
 AUDIT_LOG_PATH = Path("data/wechat_runtime/custom_fanout.log")
 TOKEN_URL = "https://api.weixin.qq.com/cgi-bin/token"
-CUSTOM_SEND_URL = "https://api.weixin.qq.com/cgi-bin/message/custom/send")
+CUSTOM_SEND_URL = "https://api.weixin.qq.com/cgi-bin/message/custom/send"
 
 
 def _audit(payload: dict) -> None:

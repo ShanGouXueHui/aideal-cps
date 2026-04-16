@@ -1,5 +1,6 @@
-import logging
 from __future__ import annotations
+
+import logging
 
 from app.core.db import SessionLocal
 from app.services.partner_center_action_service import route_partner_center_action
