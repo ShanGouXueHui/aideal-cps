@@ -1,3 +1,4 @@
+import logging
 from __future__ import annotations
 
 from app.core.db import SessionLocal
@@ -27,6 +28,8 @@ from app.services.wechat_recommend_runtime_service import (
     has_today_recommend_products,
 )
 from app.services.wechat_service import build_text_response
+
+logger = logging.getLogger("uvicorn.error")
 
 
 HELP_KEYWORDS = {"帮助", "怎么用", "如何使用", "使用说明", "help"}
@@ -93,6 +96,8 @@ def route(msg: dict) -> str:
                             extra_replies = segments[1:]
                             if extra_replies:
                                 try:
+                                    logger.info("today_recommend extra_replies prepared | openid_hash=%s count=%s", (to_user or "")[-8:], len(extra_replies))
+
                                     fanout_text_messages_async(to_user, extra_replies)
                                 except Exception:
                                     pass
