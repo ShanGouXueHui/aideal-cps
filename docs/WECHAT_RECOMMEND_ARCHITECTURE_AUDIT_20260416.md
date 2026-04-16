@@ -68,3 +68,10 @@
 - 先稳定主链路
 - 再做“更多同类产品公众号内直回”
 - 最后再做推荐文案与用户画像优化
+
+
+## 收敛决定（2026-04-16 dev）
+- `app/services/wechat_recommend_runtime_service.py` 作为推荐链路唯一真实实现
+- `app/services/wechat_recommend_h5_service.py` 降级为兼容导入壳，不再承载业务逻辑
+- 后续所有推荐逻辑修改，必须只改 runtime_service
+
