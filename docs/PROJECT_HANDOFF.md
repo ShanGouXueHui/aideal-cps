@@ -628,3 +628,18 @@ P3 当前新增：
 - 推荐文本中的下单路径已与后端兼容
 - 下一步应继续核查 redirect 最终跳转是否稳定到 JD 目标页
 
+
+## 2026-04-16 22:25:21 redirect 双路由与 H5 链接函数修正
+
+### 本轮修复
+- 显式重写 `app/api/promotion.py`
+- 确保以下两个路由同时可用：
+  - `/promotion/redirect`
+  - `/api/promotion/redirect`
+- 修复 `wechat_recommend_h5_service.py` 中 `_detail_url()` 被误注入 `wechat_openid` 导致的 `NameError`
+- 保留 `more-like-this` 链接透传 `wechat_openid`
+
+### 当前判断
+- 如果本轮本地 probe 成功返回 302，则下单主链路已恢复
+- 如果仍返回 500，则下一步需要继续深入 `promotion_service / click_redirect_service / create_promotion_link_by_openid` 内部返回值
+

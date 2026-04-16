@@ -1393,15 +1393,11 @@ def _detail_url(product, *, scene: str, slot: int) -> str:
         "recommend_h5_path_template",
         "/api/h5/recommend/{product_id}?scene={scene}&slot={slot}",
     )
-    base = _public_base_url() + tpl.format(
+    return _public_base_url() + tpl.format(
         product_id=int(product.id),
         scene=quote(str(scene), safe=""),
         slot=int(slot),
     )
-    if wechat_openid:
-        joiner = "&" if "?" in base else "?"
-        base = f"{base}{joiner}wechat_openid={quote(str(wechat_openid), safe='')}"
-    return base
 
 def _more_like_this_url(product, *, scene: str, slot: int, wechat_openid: str = "") -> str:
     tpl = _cfg_url_template(
