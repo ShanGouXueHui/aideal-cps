@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+cd ~/projects/aideal-cps || exit 1
+
+echo "===== CPS CODEX PRE-READ ====="
+~/bin/cps-git-snapshot
+echo
+~/bin/cps-read-memory | sed -n '1,260p'
+echo
+echo "===== CODEX SYSTEM PROMPT ====="
+cat ~/.config/codex/cps-system-prompt.md
+echo
+echo "===== NEXT ====="
+echo "现在可以在当前目录启动 codex cli，并要求它先读取上述文档后再执行任务。"
