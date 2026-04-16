@@ -611,3 +611,20 @@ P3 当前新增：
 - more-like-this 需要固定静态路由优先级
 - promotion redirect 仍需继续做线上稳定性排查
 
+
+## 2026-04-16 22:21:52 redirect alias 与同类页透传 openid 修正
+
+### 已修复
+- promotion redirect 同时支持：
+  - `/promotion/redirect`
+  - `/api/promotion/redirect`
+- 解决推荐文本里使用 `/api/promotion/redirect` 但服务只暴露 `/promotion/redirect` 的不一致问题
+- `more-like-this` H5 页面下单链接已透传 `wechat_openid`
+- 推荐文本中的“更多同类产品”链接也已透传 `wechat_openid`
+
+### 当前状态
+- 图文详情页：本地 200
+- 更多同类产品页：本地 200
+- 推荐文本中的下单路径已与后端兼容
+- 下一步应继续核查 redirect 最终跳转是否稳定到 JD 目标页
+

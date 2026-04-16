@@ -1393,22 +1393,30 @@ def _detail_url(product, *, scene: str, slot: int) -> str:
         "recommend_h5_path_template",
         "/api/h5/recommend/{product_id}?scene={scene}&slot={slot}",
     )
-    return _public_base_url() + tpl.format(
+    base = _public_base_url() + tpl.format(
         product_id=int(product.id),
         scene=quote(str(scene), safe=""),
         slot=int(slot),
     )
+    if wechat_openid:
+        joiner = "&" if "?" in base else "?"
+        base = f"{base}{joiner}wechat_openid={quote(str(wechat_openid), safe='')}"
+    return base
 
-def _more_like_this_url(product, *, scene: str, slot: int) -> str:
+def _more_like_this_url(product, *, scene: str, slot: int, wechat_openid: str = "") -> str:
     tpl = _cfg_url_template(
         "more_like_this_path_template",
         "/api/h5/recommend/more-like-this?product_id={product_id}&scene={scene}&slot={slot}",
     )
-    return _public_base_url() + tpl.format(
+    base = _public_base_url() + tpl.format(
         product_id=int(product.id),
         scene=quote(str(scene), safe=""),
         slot=int(slot),
     )
+    if wechat_openid:
+        joiner = "&" if "?" in base else "?"
+        base = f"{base}{joiner}wechat_openid={quote(str(wechat_openid), safe='')}"
+    return base
 
 def _openid_key(openid: str) -> str:
     return hashlib.sha1(str(openid).encode("utf-8")).hexdigest()[:24]
@@ -1580,7 +1588,7 @@ def get_today_recommend_text_reply(db, wechat_openid: str) -> str | None:
             f"✨ 推荐理由：{_commercial_reason(product)}",
             f"📄 {LABEL_DETAIL}：{_detail_url(product, scene='today_recommend', slot=idx)}",
             f"🛒 {LABEL_BUY}：{_promotion_url(product, wechat_openid=wechat_openid, scene='today_recommend', slot=idx)}",
-            f"🔎 {LABEL_MORE}：{_more_like_this_url(product, scene='today_recommend', slot=idx)}",
+            f"🔎 {LABEL_MORE}：{_more_like_this_url(product, scene='today_recommend', slot=idx, wechat_openid=wechat_openid)}",
             "",
         ])
     lines.append("👉 再点一次“今日推荐”，继续下一组 3 个。")
@@ -1602,7 +1610,7 @@ def get_find_product_entry_text_reply(db, wechat_openid: str) -> str | None:
         f"✨ 推荐理由：{_commercial_reason(product)}",
         f"📄 {LABEL_DETAIL}：{_detail_url(product, scene='find_product_entry', slot=1)}",
         f"🛒 {LABEL_BUY}：{_promotion_url(product, wechat_openid=wechat_openid, scene='find_product_entry', slot=1)}",
-        f"🔎 {LABEL_MORE}：{_more_like_this_url(product, scene='find_product_entry', slot=1)}",
+        f"🔎 {LABEL_MORE}：{_more_like_this_url(product, scene='find_product_entry', slot=1, wechat_openid=wechat_openid)}",
         "",
         "👉 也可以直接回复你想买的商品，比如：卫生纸、洗衣液、宝宝湿巾。",
     ]).strip()

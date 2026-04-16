@@ -15,6 +15,7 @@ async def recommend_more_like_this_page(
     product_id: int,
     scene: str = Query(default=""),
     slot: str = Query(default=""),
+    wechat_openid: str = Query(default=""),
 ):
     db = SessionLocal()
     try:
@@ -35,7 +36,7 @@ async def recommend_more_like_this_page(
         )
 
         cards = []
-        for x in rows[:3]:
+        for idx, x in enumerate(rows[:3], 1):
             purchase_price = getattr(x, "purchase_price", None)
             basis_price = getattr(x, "basis_price", None)
             price_text = "以下单页实时信息为准"
@@ -46,14 +47,20 @@ async def recommend_more_like_this_page(
             except Exception:
                 pass
 
+            detail_link = f"/api/h5/recommend/{int(x.id)}?scene=more_like_this&slot={idx}"
+            buy_link = (
+                f"/api/promotion/redirect?"
+                f"wechat_openid={wechat_openid}&product_id={int(x.id)}&scene=more_like_this&slot={idx}"
+            )
+
             cards.append(
                 f"""
                 <div style="background:#fff;border-radius:16px;padding:16px;margin:12px 0;box-shadow:0 4px 16px rgba(15,23,42,.06);">
                   <div style="font-size:16px;font-weight:700;line-height:1.6;color:#111827;">{x.title}</div>
                   <div style="margin-top:10px;color:#475569;line-height:1.8;">💰 到手参考：{price_text}</div>
                   <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap;">
-                    <a href="/api/h5/recommend/{int(x.id)}?scene=more_like_this&slot=1" style="display:inline-block;padding:10px 14px;border-radius:10px;background:#eef2ff;color:#3730a3;text-decoration:none;">图文详情</a>
-                    <a href="/api/promotion/redirect?product_id={int(x.id)}&scene=more_like_this&slot=1" style="display:inline-block;padding:10px 14px;border-radius:10px;background:#dcfce7;color:#166534;text-decoration:none;">下单链接</a>
+                    <a href="{detail_link}" style="display:inline-block;padding:10px 14px;border-radius:10px;background:#eef2ff;color:#3730a3;text-decoration:none;">图文详情</a>
+                    <a href="{buy_link}" style="display:inline-block;padding:10px 14px;border-radius:10px;background:#dcfce7;color:#166534;text-decoration:none;">下单链接</a>
                   </div>
                 </div>
                 """
