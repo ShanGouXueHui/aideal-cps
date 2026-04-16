@@ -45,3 +45,11 @@ Codex/后续协作必须遵守：
 - 不直接重构或重写 `app/services/wechat_service.py`
 - 不直接改坏 JD 通信协议层
 - 业务改动默认落在独立 service / renderer / builder，不得把业务逻辑塞回通信层
+
+## 2026-04-17 通信边界冻结（WeChat/JD）
+- 公众号通信基础链路冻结：`app/api/wechat.py` -> `app/services/message_router.py` -> `app/services/wechat_service.py`
+- 京东通信基础链路冻结：`app/services/jd_union_client.py` 及其直接 API 边界
+- 菜单点击“今日推荐”只允许单次被动回复；不再使用客服消息二次/三次补发
+- 后续业务调整只允许落在推荐运行时、规则配置、文案、H5 展示层；不得直接改动微信/JD 通信边界
+- 如需新增消息形态，必须新增独立适配层，不得在回调签名、消息路由、基础发包链路上继续叠 patch
+- 当前阶段以“通信稳定优先”高于“内容形态丰富度”

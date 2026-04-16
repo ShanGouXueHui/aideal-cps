@@ -681,3 +681,10 @@ P3 当前新增：
 - 新需求和后续修复优先落在 `wechat_recommend_runtime_service.py`
 - 后续再安排旧大文件清理和模块拆分收尾
 
+## 2026-04-17 通信边界冻结（WeChat/JD）
+- 公众号通信基础链路冻结：`app/api/wechat.py` -> `app/services/message_router.py` -> `app/services/wechat_service.py`
+- 京东通信基础链路冻结：`app/services/jd_union_client.py` 及其直接 API 边界
+- 菜单点击“今日推荐”只允许单次被动回复；不再使用客服消息二次/三次补发
+- 后续业务调整只允许落在推荐运行时、规则配置、文案、H5 展示层；不得直接改动微信/JD 通信边界
+- 如需新增消息形态，必须新增独立适配层，不得在回调签名、消息路由、基础发包链路上继续叠 patch
+- 当前阶段以“通信稳定优先”高于“内容形态丰富度”

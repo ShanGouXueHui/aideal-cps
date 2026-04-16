@@ -5,7 +5,6 @@ import logging
 from typing import Any
 
 from app.core.db import SessionLocal
-from app.services.wechat_passive_fanout_service import fanout_text_messages_async
 from app.services.wechat_service import build_text_response
 
 logger = logging.getLogger("uvicorn.error")
@@ -36,25 +35,8 @@ def _call_candidates(module_name: str, candidate_names: list[str], attempts: lis
     return None
 
 
-def _get_today_segments(db, wechat_openid: str) -> list[str]:
+def _get_today_text(db, wechat_openid: str) -> str:
     result = _call_candidates(
-        "app.services.wechat_recommend_runtime_service",
-        [
-            "get_today_recommend_reply_segments",
-            "build_today_recommend_segments",
-            "get_today_recommend_segments",
-        ],
-        [
-            ((db, wechat_openid), {}),
-            ((), {"db": db, "wechat_openid": wechat_openid}),
-        ],
-    )
-    if isinstance(result, (list, tuple)):
-        parts = [str(x).strip() for x in result if str(x or "").strip()]
-        if parts:
-            return parts
-
-    fallback = _call_candidates(
         "app.services.wechat_recommend_runtime_service",
         ["get_today_recommend_text_reply"],
         [
@@ -62,8 +44,8 @@ def _get_today_segments(db, wechat_openid: str) -> list[str]:
             ((), {"db": db, "wechat_openid": wechat_openid}),
         ],
     )
-    text = str(fallback or "").strip()
-    return [text] if text else []
+    return str(result or "").strip()
+
 
 
 def _get_find_entry_text(db, wechat_openid: str) -> str:
@@ -129,31 +111,19 @@ def route(
     if msg_type == "event" and event == "CLICK" and event_key == "今日推荐":
         db = SessionLocal()
         try:
-            segments = _get_today_segments(db, to_user)
+            text = _get_today_text(db, to_user)
         finally:
             db.close()
 
-        if not segments:
-            return build_text_response(
-                to_user,
-                from_user,
-                "今天的推荐还在准备中，稍后再试一下～",
-            )
-
-        passive_text = segments[0]
-        extra_texts = [x for x in segments[1:] if str(x or "").strip()]
+        if not text:
+            text = "今天的推荐还在准备中，稍后再试一下～"
 
         logger.info(
-            "today_recommend direct fanout branch | openid_tail=%s passive_len=%s extra_count=%s",
+            "today_recommend passive-only branch | openid_tail=%s text_len=%s",
             (to_user or "")[-8:],
-            len(passive_text),
-            len(extra_texts),
+            len(text),
         )
-
-        if extra_texts:
-            fanout_text_messages_async(to_user, extra_texts)
-
-        return build_text_response(to_user, from_user, passive_text)
+        return build_text_response(to_user, from_user, text)
 
     if msg_type == "event" and event == "CLICK" and event_key == "找商品":
         db = SessionLocal()
