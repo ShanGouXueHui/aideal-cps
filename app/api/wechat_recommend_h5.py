@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Query
 from fastapi.responses import HTMLResponse
+import re
+import html
 
 from app.core.db import SessionLocal
 from app.services.wechat_recommend_runtime_service import (
@@ -9,6 +11,22 @@ from app.services.wechat_recommend_runtime_service import (
     render_more_like_this_h5,
     render_product_h5,
 )
+
+
+def _normalize_title_tags(content: str) -> str:
+    raw = content or ""
+
+    def _fix(match):
+        title = html.escape(html.unescape(match.group(1) or ""), quote=True)
+        return f"<title>{title}</title>"
+
+    return re.sub(
+        r"<title>(.*?)</title>",
+        _fix,
+        raw,
+        count=1,
+        flags=re.IGNORECASE | re.DOTALL,
+    )
 
 router = APIRouter()
 
