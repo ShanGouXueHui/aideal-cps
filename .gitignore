@@ -16,3 +16,7 @@ scratch/
 data/
 *.bak_*
 .env.bak_*
+env/
+tmp/
+logs/
+ops/deploy/targets.env
