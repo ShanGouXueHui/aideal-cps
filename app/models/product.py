@@ -40,6 +40,13 @@ class Product(Base):
     allow_partner_share = Column(Boolean, nullable=False, server_default="1", index=True)
     compliance_notes = Column(String(500), nullable=True)
 
+    purchase_price = Column(Numeric(12, 2), nullable=True)
+    basis_price = Column(Numeric(12, 2), nullable=True)
+    basis_price_type = Column(Integer, nullable=True, index=True)
+    good_comments_share = Column(Float, nullable=True)
+    comment_count = Column(Integer, nullable=True)
+    price_verified_at = Column(DateTime(timezone=True), nullable=True)
+    is_exact_discount = Column(Boolean, nullable=False, server_default="0", index=True)
     status = Column(String(50), default="active")
     last_sync_at = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())

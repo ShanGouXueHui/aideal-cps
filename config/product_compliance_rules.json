@@ -42,17 +42,43 @@
       "润滑液",
       "延时喷剂",
       "避孕套",
-      "安全套"
+      "安全套",
+      "性欲",
+      "勃起",
+      "延时",
+      "壮阳",
+      "荷尔蒙",
+      "男荷尔蒙",
+      "性功能",
+      "睾酮",
+      "玛咖",
+      "黑玛咖",
+      "卡图巴",
+      "牡蛎肽"
     ],
     "category": [
       "成人用品",
       "情趣用品",
-      "计生用品"
+      "计生用品",
+      "成人保健",
+      "两性健康"
     ]
   },
-  "jd_forbid_types_restricted": [10, 11],
-  "partner_share_allowed_levels": ["normal"],
-  "proactive_push_allowed_levels": ["normal"],
-  "adult_visible_levels": ["normal", "restricted"],
-  "minor_visible_levels": ["normal"]
+  "jd_forbid_types_restricted": [
+    10,
+    11
+  ],
+  "partner_share_allowed_levels": [
+    "normal"
+  ],
+  "proactive_push_allowed_levels": [
+    "normal"
+  ],
+  "adult_visible_levels": [
+    "normal",
+    "restricted"
+  ],
+  "minor_visible_levels": [
+    "normal"
+  ]
 }

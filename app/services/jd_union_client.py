@@ -170,30 +170,26 @@ class JDUnionClient:
         *,
         keyword: str,
         page_index: int = 1,
-        page_size: int = 12,
+        page_size: int = 20,
         sort_name: str | None = None,
         sort: str | None = None,
-        fields: str | None = None,
-        owner: str | None = None,
-        extra_goods_req: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         goods_req: dict[str, Any] = {
-            "keyword": keyword,
-            "pageIndex": page_index,
-            "pageSize": page_size,
+            "keyword": str(keyword or "").strip(),
+            "pageIndex": int(page_index),
+            "pageSize": int(page_size),
         }
-        if self.pid:
-            goods_req["pid"] = self.pid
+        if goods_req["keyword"] == "":
+            raise ValueError("goods_query keyword is empty")
+
+        sort_name = str(sort_name or "").strip()
+        sort = str(sort or "").strip()
+
         if sort_name:
             goods_req["sortName"] = sort_name
         if sort:
             goods_req["sort"] = sort
-        if fields:
-            goods_req["fields"] = fields
-        if owner:
-            goods_req["owner"] = owner
-        if extra_goods_req:
-            goods_req.update(extra_goods_req)
+
         return self.request("jd.union.open.goods.query", {"goodsReq": goods_req})
 
     def promotion_bysubunionid_get(

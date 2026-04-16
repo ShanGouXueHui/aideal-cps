@@ -49,7 +49,7 @@ def main() -> int:
         follow_redirects=False,
         headers={
             "user-agent": "promotion-smoke-test",
-            "referer": "http://8.136.28.6/",
+            "referer": "https://aidealfy.kindafeelfy.cn/",
         },
     )
 

@@ -16,3 +16,12 @@ scratch/
 data/
 *.bak_*
 .env.bak_*
+
+backups/
+__pycache__/
+*.pyc
+*.pyo
+*.bak
+*.fixbak_*
+*.tmp
+logs/*.log

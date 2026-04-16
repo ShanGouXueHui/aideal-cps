@@ -1,8 +1,8 @@
 {
   "enabled": true,
-  "local_result_threshold": 3,
-  "live_page_size": 12,
-  "live_keep_top_n": 3,
-  "default_sort_name": "inOrderCount30DaysSku",
-  "default_sort": "desc"
+  "local_result_threshold": 6,
+  "live_page_size": 30,
+  "live_keep_top_n": 12,
+  "default_sort_name": "",
+  "default_sort": ""
 }

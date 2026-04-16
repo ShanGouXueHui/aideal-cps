@@ -14,7 +14,8 @@ from app.services.user_profile_config_service import load_morning_push_copy
 from app.services.user_profile_service import preferred_category
 
 
-BASE_URL = "http://8.136.28.6"
+from app.core.wechat_recommend_config import get_public_base_url
+BASE_URL = get_public_base_url()
 
 
 def _safe_decimal(value: Any) -> Decimal:

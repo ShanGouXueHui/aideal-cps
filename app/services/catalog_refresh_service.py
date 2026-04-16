@@ -23,7 +23,7 @@ def _product_payload_from_live_row(row: dict[str, Any], *, keyword: str) -> dict
         "title": row.get("title"),
         "description": row.get("description"),
         "image_url": row.get("image_url"),
-        "product_url": row.get("product_url") or row.get("short_url"),
+        "product_url": row.get("product_url") or row.get("short_url") or row.get("material_url"),
         "material_url": row.get("material_url"),
         "short_url": row.get("short_url"),
         "category_name": row.get("category_name"),
@@ -59,6 +59,8 @@ def refresh_elite_catalogs(
     *,
     elite_ids: list[int] | None = None,
     limit: int | None = None,
+    page_index: int = 1,
+    with_short_links: bool = True,
 ) -> dict[str, Any]:
     rules = load_catalog_refresh_rules()
     elite_ids = elite_ids or list(rules.get("elite_ids", []))
@@ -74,9 +76,9 @@ def refresh_elite_catalogs(
             db,
             elite_id=int(elite_id),
             limit=limit,
-            page_index=1,
+            page_index=page_index,
             page_size=limit,
-            with_short_links=True,
+            with_short_links=with_short_links,
         )
         total_inserted += int(result.get("inserted", 0))
         total_updated += int(result.get("updated", 0))
@@ -85,6 +87,46 @@ def refresh_elite_catalogs(
 
     return {
         "elite_ids": elite_ids,
+        "page_index": page_index,
+        "with_short_links": with_short_links,
+        "inserted": total_inserted,
+        "updated": total_updated,
+        "total": total_rows,
+        "results": results,
+    }
+
+
+def refresh_elite_catalog_pages(
+    db: Session,
+    *,
+    elite_ids: list[int] | None = None,
+    limit: int | None = None,
+    page_start: int = 1,
+    page_end: int = 1,
+    with_short_links: bool = True,
+) -> dict[str, Any]:
+    results = []
+    total_inserted = 0
+    total_updated = 0
+    total_rows = 0
+
+    for page_index in range(page_start, page_end + 1):
+        result = refresh_elite_catalogs(
+            db,
+            elite_ids=elite_ids,
+            limit=limit,
+            page_index=page_index,
+            with_short_links=with_short_links,
+        )
+        total_inserted += int(result.get("inserted", 0))
+        total_updated += int(result.get("updated", 0))
+        total_rows += int(result.get("total", 0))
+        results.append(result)
+
+    return {
+        "page_start": page_start,
+        "page_end": page_end,
+        "with_short_links": with_short_links,
         "inserted": total_inserted,
         "updated": total_updated,
         "total": total_rows,
@@ -97,7 +139,9 @@ def refresh_keyword_catalog(
     *,
     keyword: str,
     limit: int | None = None,
+    page_index: int = 1,
     jd_client: JDUnionClient | None = None,
+    with_short_links: bool = True,
 ) -> dict[str, Any]:
     rules = load_catalog_refresh_rules()
     limit = int(limit or rules.get("keyword_sync_limit", 12))
@@ -105,7 +149,7 @@ def refresh_keyword_catalog(
 
     response = client.goods_query(
         keyword=keyword,
-        page_index=1,
+        page_index=page_index,
         page_size=limit,
         sort_name=rules.get("goods_query_sort_name"),
         sort=rules.get("goods_query_sort"),
@@ -118,7 +162,7 @@ def refresh_keyword_catalog(
 
     for item in items[:limit]:
         material_url = _pick_material_url(item)
-        short_url = _build_short_link(client, material_url)
+        short_url = _build_short_link(client, material_url) if (with_short_links and material_url) else None
         live_row = _normalize_live_item(item, short_url=short_url)
         payload = _product_payload_from_live_row(live_row, keyword=keyword)
 
@@ -134,6 +178,8 @@ def refresh_keyword_catalog(
                 "title": product.title,
                 "short_url": product.short_url,
                 "keyword": keyword,
+                "page_index": page_index,
+                "with_short_links": with_short_links,
                 "compliance_level": getattr(product, "compliance_level", None),
                 "action": action,
             }
@@ -142,6 +188,8 @@ def refresh_keyword_catalog(
     db.commit()
     return {
         "keyword": keyword,
+        "page_index": page_index,
+        "with_short_links": with_short_links,
         "inserted": inserted,
         "updated": updated,
         "total": len(rows),
@@ -154,7 +202,9 @@ def refresh_keyword_catalogs(
     *,
     keywords: list[str] | None = None,
     limit: int | None = None,
+    page_index: int = 1,
     jd_client: JDUnionClient | None = None,
+    with_short_links: bool = True,
 ) -> dict[str, Any]:
     rules = load_catalog_refresh_rules()
     keywords = keywords or list(rules.get("keyword_seeds", []))
@@ -170,7 +220,9 @@ def refresh_keyword_catalogs(
             db,
             keyword=keyword,
             limit=limit,
+            page_index=page_index,
             jd_client=jd_client,
+            with_short_links=with_short_links,
         )
         total_inserted += int(result.get("inserted", 0))
         total_updated += int(result.get("updated", 0))
@@ -179,6 +231,46 @@ def refresh_keyword_catalogs(
 
     return {
         "keywords": keywords,
+        "page_index": page_index,
+        "with_short_links": with_short_links,
+        "inserted": total_inserted,
+        "updated": total_updated,
+        "total": total_rows,
+        "results": results,
+    }
+
+
+def refresh_keyword_catalog_pages(
+    db: Session,
+    *,
+    keywords: list[str] | None = None,
+    limit: int | None = None,
+    page_start: int = 1,
+    page_end: int = 1,
+    with_short_links: bool = True,
+) -> dict[str, Any]:
+    results = []
+    total_inserted = 0
+    total_updated = 0
+    total_rows = 0
+
+    for page_index in range(page_start, page_end + 1):
+        result = refresh_keyword_catalogs(
+            db,
+            keywords=keywords,
+            limit=limit,
+            page_index=page_index,
+            with_short_links=with_short_links,
+        )
+        total_inserted += int(result.get("inserted", 0))
+        total_updated += int(result.get("updated", 0))
+        total_rows += int(result.get("total", 0))
+        results.append(result)
+
+    return {
+        "page_start": page_start,
+        "page_end": page_end,
+        "with_short_links": with_short_links,
         "inserted": total_inserted,
         "updated": total_updated,
         "total": total_rows,
@@ -192,7 +284,7 @@ def inactivate_expired_products(
     expire_hours: int | None = None,
 ) -> dict[str, Any]:
     rules = load_catalog_refresh_rules()
-    expire_hours = int(expire_hours or rules.get("expire_hours", 72))
+    expire_hours = int(expire_hours or rules.get("expire_hours", 24))
     cutoff = datetime.now(timezone.utc) - timedelta(hours=expire_hours)
 
     rows = (
@@ -231,7 +323,7 @@ def purge_stale_products(
     purge_hours: int | None = None,
 ) -> dict[str, Any]:
     rules = load_catalog_refresh_rules()
-    purge_hours = int(purge_hours or rules.get("purge_hours", 240))
+    purge_hours = int(purge_hours or rules.get("purge_hours", 72))
     cutoff = datetime.now(timezone.utc) - timedelta(hours=purge_hours)
 
     rows = (
@@ -258,19 +350,50 @@ def purge_stale_products(
         "purge_hours": purge_hours,
         "purged_count": purged,
         "skipped_with_refs": skipped,
-        "candidate_count": len(rows),
     }
 
 
-def run_nightly_catalog_refresh(db: Session) -> dict[str, Any]:
-    elite_result = refresh_elite_catalogs(db)
-    keyword_result = refresh_keyword_catalogs(db)
-    inactive_result = inactivate_expired_products(db)
-    purge_result = purge_stale_products(db)
+def catalog_health_report(
+    db: Session,
+    *,
+    expire_hours: int | None = None,
+) -> dict[str, Any]:
+    rules = load_catalog_refresh_rules()
+    expire_hours = int(expire_hours or rules.get("expire_hours", 24))
+    now = datetime.now(timezone.utc)
+    expire_cutoff = now - timedelta(hours=expire_hours)
+    recent_24h = now - timedelta(hours=24)
+
+    total = db.query(Product).count()
+    active = db.query(Product).filter(Product.status == "active").count()
+    inactive = db.query(Product).filter(Product.status == "inactive").count()
+    active_with_short_url = db.query(Product).filter(
+        Product.status == "active",
+        Product.short_url.isnot(None),
+        Product.short_url != "",
+    ).count()
+    active_without_short_url = db.query(Product).filter(
+        Product.status == "active",
+    ).filter(
+        (Product.short_url.is_(None)) | (Product.short_url == "")
+    ).count()
+    active_recent_24h = db.query(Product).filter(
+        Product.status == "active",
+        Product.last_sync_at.isnot(None),
+        Product.last_sync_at >= recent_24h,
+    ).count()
+    active_stale_over_expire = db.query(Product).filter(
+        Product.status == "active",
+        Product.last_sync_at.isnot(None),
+        Product.last_sync_at < expire_cutoff,
+    ).count()
 
     return {
-        "elite_refresh": elite_result,
-        "keyword_refresh": keyword_result,
-        "inactive_cleanup": inactive_result,
-        "purge_cleanup": purge_result,
+        "products_total": total,
+        "products_active": active,
+        "products_inactive": inactive,
+        "products_active_with_short_url": active_with_short_url,
+        "products_active_without_short_url": active_without_short_url,
+        "products_active_recent_24h": active_recent_24h,
+        "products_active_stale_over_expire": active_stale_over_expire,
     }

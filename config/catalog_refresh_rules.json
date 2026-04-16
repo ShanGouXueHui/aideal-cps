@@ -1,18 +1,30 @@
 {
   "enabled": true,
-  "elite_ids": [129],
-  "keyword_seeds": [
-    "卫生纸",
-    "卫生巾",
-    "洗衣液",
-    "宝宝湿巾",
-    "抽纸",
-    "牙膏"
+  "elite_ids": [
+    129
   ],
-  "elite_sync_limit": 20,
-  "keyword_sync_limit": 12,
-  "goods_query_sort_name": "inOrderCount30DaysSku",
-  "goods_query_sort": "desc",
+  "keyword_seeds": [],
+  "elite_sync_limit": 50,
+  "keyword_sync_limit": 50,
+  "goods_query_sort_name": "",
+  "goods_query_sort": "",
   "expire_hours": 72,
-  "purge_hours": 240
+  "purge_hours": 240,
+  "elite_pages_per_run": 3400,
+  "keyword_pages_per_run": 2,
+  "bootstrap_target_active_with_short_url": 500,
+  "bootstrap_max_rounds": 5,
+  "bootstrap_elite_pages_per_round": 20,
+  "bootstrap_keyword_pages_per_round": 1,
+  "shortlink_hydration_limit_per_run": 5000,
+  "bootstrap_shortlink_hydration_limit": 500,
+  "shortlink_workers": 8,
+  "price_audit_limit_per_run": 5000,
+  "bootstrap": {
+    "target_raw_rows": 0,
+    "fetch_workers": 8,
+    "page_size": 50,
+    "pages_per_keyword": 30,
+    "db_commit_batch": 200
+  }
 }

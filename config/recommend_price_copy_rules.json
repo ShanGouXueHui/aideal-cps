@@ -1,0 +1,35 @@
+{
+  "labels": {
+    "price": "优惠价",
+    "jd_basis_price": "京东官网价",
+    "fallback_price": "以下单页实时为准"
+  },
+  "basis_price_type_labels": {
+    "1": "京东官网价",
+    "2": "PLUS参考价",
+    "7": "粉丝参考价",
+    "8": "新人参考价",
+    "9": "学生参考价",
+    "10": "陪伴计划参考价"
+  },
+  "discount_thresholds": {
+    "strong_amount": 20,
+    "medium_amount": 8,
+    "strong_rate": 0.30,
+    "medium_rate": 0.15
+  },
+  "maturity_thresholds": {
+    "high_sales_volume": 200,
+    "mid_sales_volume": 50,
+    "high_comment_count": 10000,
+    "mid_comment_count": 3000,
+    "good_comment_rate": 0.97
+  },
+  "reason_copy": {
+    "strong_discount_mature": "这单不是小打小闹的活动，优惠幅度已经明显拉开，而且成交与评论沉淀都更成熟，属于省心型下单选择；先到先得。",
+    "strong_discount": "这单核心价值是价格优势足够直接，不需要来回比太久；活动和库存都可能波动，合适就别拖，先到先得。",
+    "mature_value": "这类商品更适合稳妥下单：价格已经有明确优势，同时成交与口碑沉淀更完整，决策成本更低。",
+    "balanced_value": "这单属于价格和接受度都比较均衡的选择，适合不想反复筛选的人直接判断；先到先得。",
+    "fallback": "这单当前活动价仅作参考，价格、库存与优惠规则以下单页实时信息为准；如果正好在看这个品类，建议尽快确认，先到先得。"
+  }
+}

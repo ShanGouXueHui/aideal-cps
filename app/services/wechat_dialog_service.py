@@ -18,7 +18,8 @@ from app.services.recommendation_service import generate_reason
 from app.services.wechat_copy_service import get_copy
 
 
-BASE_URL = os.getenv("PUBLIC_BASE_URL", "http://8.136.28.6")
+from app.core.wechat_recommend_config import get_public_base_url
+BASE_URL = get_public_base_url()
 
 
 def _safe_decimal(value: Any) -> Decimal:
