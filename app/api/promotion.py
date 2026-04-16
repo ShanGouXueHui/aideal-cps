@@ -6,10 +6,31 @@ from typing import Optional
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import RedirectResponse
 
+from app.core.db import SessionLocal
 from app.services.promotion_service import create_promotion_link_by_openid
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
+
+
+def _call_create_promotion_link(
+    *,
+    wechat_openid: str,
+    product_id: int,
+    scene: Optional[str],
+    slot: Optional[int],
+) -> dict:
+    db = SessionLocal()
+    try:
+        return create_promotion_link_by_openid(
+            db=db,
+            wechat_openid=wechat_openid,
+            product_id=product_id,
+            scene=scene,
+            slot=slot,
+        )
+    finally:
+        db.close()
 
 
 @router.get("/promotion/link")
@@ -20,7 +41,7 @@ def create_promotion_link(
     slot: Optional[int] = None,
 ):
     try:
-        return create_promotion_link_by_openid(
+        return _call_create_promotion_link(
             wechat_openid=wechat_openid,
             product_id=product_id,
             scene=scene,
@@ -46,7 +67,7 @@ def promotion_redirect(
     slot: Optional[int] = Query(None),
 ):
     try:
-        result = create_promotion_link_by_openid(
+        result = _call_create_promotion_link(
             wechat_openid=wechat_openid,
             product_id=product_id,
             scene=scene,
@@ -64,6 +85,14 @@ def promotion_redirect(
         )
 
         if not redirect_url:
+            logger.error(
+                "promotion redirect missing url | openid=%s product_id=%s scene=%s slot=%s payload=%s",
+                wechat_openid,
+                product_id,
+                scene,
+                slot,
+                result,
+            )
             raise HTTPException(status_code=404, detail="promotion url not found")
 
         return RedirectResponse(url=str(redirect_url), status_code=302)

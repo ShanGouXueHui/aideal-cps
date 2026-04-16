@@ -643,3 +643,23 @@ P3 当前新增：
 - 如果本轮本地 probe 成功返回 302，则下单主链路已恢复
 - 如果仍返回 500，则下一步需要继续深入 `promotion_service / click_redirect_service / create_promotion_link_by_openid` 内部返回值
 
+
+## 2026-04-16 22:30:24 架构收口说明
+
+### 新增文档
+- `docs/WECHAT_RECOMMEND_ARCHITECTURE_AUDIT_20260416.md`
+
+### 本轮处理目标
+本轮不再继续叠临时 patch，而是转为“稳定边界”方式处理：
+- API 层显式持有 `SessionLocal`
+- API 层统一调用 promotion service
+- 将 redirect 500 的根因从“函数签名不一致”层面收口
+- 对 `wechat_recommend_h5_service.py` 进行重复定义审计
+
+### 原则
+后续修改优先遵守：
+1. 配置放配置文件 / 数据库
+2. API 层负责 session 和 HTTP
+3. service 层只做业务
+4. 避免在单一大文件中继续追加 override block
+
