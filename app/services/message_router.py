@@ -5,7 +5,7 @@ import logging
 from typing import Any
 
 from app.core.db import SessionLocal
-from app.services.wechat_service import build_text_response
+from app.services.wechat_service import build_news_response, build_text_response
 
 logger = logging.getLogger("uvicorn.error")
 
@@ -35,6 +35,27 @@ def _call_candidates(module_name: str, candidate_names: list[str], attempts: lis
     return None
 
 
+def _get_today_news_articles(db, wechat_openid: str) -> list[dict[str, str]]:
+    result = _call_candidates(
+        "app.services.wechat_recommend_runtime_service",
+        [
+            "get_today_recommend_news_articles",
+            "build_today_recommend_news_articles",
+        ],
+        [
+            ((db, wechat_openid), {}),
+            ((), {"db": db, "wechat_openid": wechat_openid}),
+        ],
+    )
+    if isinstance(result, (list, tuple)):
+        rows = []
+        for item in result:
+            if isinstance(item, dict):
+                rows.append(item)
+        return rows
+    return []
+
+
 def _get_today_text(db, wechat_openid: str) -> str:
     result = _call_candidates(
         "app.services.wechat_recommend_runtime_service",
@@ -45,7 +66,6 @@ def _get_today_text(db, wechat_openid: str) -> str:
         ],
     )
     return str(result or "").strip()
-
 
 
 def _get_find_entry_text(db, wechat_openid: str) -> str:
@@ -111,19 +131,30 @@ def route(
     if msg_type == "event" and event == "CLICK" and event_key == "今日推荐":
         db = SessionLocal()
         try:
-            text = _get_today_text(db, to_user)
+            articles = _get_today_news_articles(db, to_user)
+            fallback_text = ""
+            if not articles:
+                fallback_text = _get_today_text(db, to_user)
         finally:
             db.close()
 
-        if not text:
-            text = "今天的推荐还在准备中，稍后再试一下～"
+        if articles:
+            logger.info(
+                "today_recommend passive-news branch | openid_tail=%s article_count=%s",
+                (to_user or "")[-8:],
+                len(articles),
+            )
+            return build_news_response(to_user, from_user, articles)
+
+        if not fallback_text:
+            fallback_text = "今天的推荐还在准备中，稍后再试一下～"
 
         logger.info(
-            "today_recommend passive-only branch | openid_tail=%s text_len=%s",
+            "today_recommend passive-text-fallback | openid_tail=%s text_len=%s",
             (to_user or "")[-8:],
-            len(text),
+            len(fallback_text),
         )
-        return build_text_response(to_user, from_user, text)
+        return build_text_response(to_user, from_user, fallback_text)
 
     if msg_type == "event" and event == "CLICK" and event_key == "找商品":
         db = SessionLocal()

@@ -694,3 +694,56 @@ def render_more_like_this_h5(
 
     body = intro + "\n" + ("\n".join(cards) if cards else '<div class="card"><div class="title">当前还没有更多同类商品。</div></div>')
     return _html_shell("更多同类产品", body)
+
+
+# === today recommend news article builder start ===
+def _product_pic_url(product: Product) -> str:
+    for key in ("image_url", "main_image_url", "image", "white_image"):
+        val = str(getattr(product, key, "") or "").strip()
+        if val:
+            return val
+    return ""
+
+
+def _news_description_for_product(product: Product) -> str:
+    price = str(_format_price_line(product) or "").replace("\n", " ").strip()
+    reason = str(_commercial_reason(product) or "").replace("\n", " ").strip()
+    text = f"{price}；{reason}".strip("； ")
+    return text[:120]
+
+
+def get_today_recommend_news_articles(db: Session, wechat_openid: str) -> list[dict[str, str]]:
+    batch = _select_today_batch(db, wechat_openid=wechat_openid)
+    if not batch:
+        return []
+
+    _record_scene_exposures(
+        db,
+        openid_hash=_openid_key(wechat_openid),
+        scene="today_recommend",
+        products=batch,
+    )
+
+    articles: list[dict[str, str]] = []
+    for idx, product in enumerate(batch, 1):
+        title = html.unescape(str(getattr(product, "title", "") or getattr(product, "sku_name", "") or "商品"))
+        title = title.strip()
+        if len(title) > 28:
+            title = title[:27] + "…"
+
+        articles.append(
+            {
+                "title": f"{idx}. {title}",
+                "description": _news_description_for_product(product),
+                "pic_url": _product_pic_url(product),
+                "url": _detail_url(
+                    product,
+                    scene="today_recommend",
+                    slot=idx,
+                    wechat_openid=wechat_openid,
+                ),
+            }
+        )
+
+    return articles
+# === today recommend news article builder end ===
