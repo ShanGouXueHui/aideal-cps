@@ -108,3 +108,8 @@
   - `shop_name`
 - 不再把 `purchase_price` / `basis_price` / `comment_count` / `allow_proactive_push` 当作线上稳定运行前提
 - 目标是先恢复公众号链路稳定，再单独推进 exact-price 模型与迁移的一致化
+
+## 2026-04-17 补充：今日推荐拆分发送
+- 被动回复只返回第 1 条推荐，避免公众号点击“今日推荐”时因单条内容过长导致 `temporarily unavailable`
+- 第 2、3 条通过客服消息接口补发
+- 详情页标题统一先 `html.unescape` 再 `html.escape`，修复 `&amp;amp;` 双重转义

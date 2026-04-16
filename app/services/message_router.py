@@ -18,9 +18,11 @@ from app.services.wechat_menu_service import (
     get_menu_entry_reply,
     resolve_menu_entry_key,
 )
+from app.services.wechat_passive_fanout_service import fanout_text_messages
 from app.services.wechat_recommend_runtime_service import (
     get_find_product_entry_text_reply,
     get_today_recommend_text_reply,
+    get_today_recommend_text_segments,
     has_find_entry_product,
     has_today_recommend_products,
 )
@@ -85,9 +87,16 @@ def route(msg: dict) -> str:
 
                 if menu_key in TODAY_RECOMMEND_KEYS:
                     if has_today_recommend_products(db):
-                        text = get_today_recommend_text_reply(db, to_user)
-                        if text:
-                            return _build_reply(to_user, from_user, text)
+                        segments = get_today_recommend_text_segments(db, to_user)
+                        if segments:
+                            passive_reply = segments[0]
+                            extra_replies = segments[1:]
+                            if extra_replies:
+                                try:
+                                    fanout_text_messages(to_user, extra_replies)
+                                except Exception:
+                                    pass
+                            return _build_reply(to_user, from_user, passive_reply)
                     text = get_today_recommend_reply(db, to_user)
                     return _build_reply(to_user, from_user, text)
 

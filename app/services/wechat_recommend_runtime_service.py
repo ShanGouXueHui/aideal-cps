@@ -443,37 +443,49 @@ def _compact_reason(product: Product) -> str:
     return "信息已经比较完整，适合先看详情后再决定。"
 
 
-def get_today_recommend_text_reply(db: Session, wechat_openid: str) -> str | None:
+
+def get_today_recommend_text_segments(db: Session, wechat_openid: str) -> list[str]:
     batch = _select_today_batch(db, wechat_openid=wechat_openid)
+    total = len(batch)
     if not batch:
-        return None
+        return []
 
-    lines: list[str] = ["🔥 今日推荐 3 个："]
+    segments: list[str] = []
     for idx, product in enumerate(batch, start=1):
-        lines.extend([
-            f"【{idx}】{_wechat_safe_title(product, 22)}",
-            _compact_price_line(product),
-            f"✨ 理由：{_compact_reason(product)}",
-            f"📄 图文详情：{_detail_url(product, scene='today_recommend', slot=idx, wechat_openid=wechat_openid)}",
-            f"🛒 下单链接：{_promotion_url(product, scene='today_recommend', slot=idx, wechat_openid=wechat_openid)}",
-        ])
+        title = html.unescape(str(getattr(product, "title", "") or getattr(product, "sku_name", "") or "商品"))
+        lines: list[str] = []
+        if idx == 1:
+            lines.extend(
+                [
+                    f"🔥 今日推荐 {total} 个，可直接购买：",
+                    "",
+                ]
+            )
+        lines.extend(
+            [
+                f"{title}",
+                _format_price_line(product),
+                f"✨ 推荐理由：{_commercial_reason(product)}",
+                f"📄 图文详情：{_detail_url(product, scene='today_recommend', slot=idx, wechat_openid=wechat_openid)}",
+                f"🛒 下单链接：{_promotion_url(product, scene='today_recommend', slot=idx, wechat_openid=wechat_openid)}",
+                f"🔎 更多同类产品：{_more_like_this_url(product, scene='today_recommend', slot=idx, wechat_openid=wechat_openid)}",
+            ]
+        )
+        if idx == total:
+            lines.extend(
+                [
+                    "",
+                    "👉 再点一次“今日推荐”，继续下一组 3 个。",
+                ]
+            )
+        segments.append("\n".join(lines).strip())
 
-    text = "
-".join(lines)
+    return segments
 
-    # 微信被动回复做保守限长，避免 temporarily unavailable
-    if len(text.encode("utf-8")) > 1450:
-        lines = ["🔥 今日推荐 3 个："]
-        for idx, product in enumerate(batch, start=1):
-            lines.extend([
-                f"【{idx}】{_wechat_safe_title(product, 16)}",
-                _compact_price_line(product, ultra=True),
-                f"🛒 下单：{_promotion_url(product, scene='today_recommend', slot=idx, wechat_openid=wechat_openid)}",
-            ])
-        text = "
-".join(lines)
 
-    return text
+def get_today_recommend_text_reply(db: Session, wechat_openid: str) -> str | None:
+    segments = get_today_recommend_text_segments(db, wechat_openid)
+    return segments[0] if segments else None
 
 
 def get_find_product_entry_text_reply(db: Session, wechat_openid: str) -> str | None:
@@ -538,34 +550,67 @@ def _html_shell(title: str, body: str) -> str:
 
 
 def render_product_h5(product: Product, *, scene: str = "", slot: str = "", wechat_openid: str = "") -> str:
-    title = html.escape(str(getattr(product, "title", "") or "商品详情"))
-    shop_name = html.escape(_shop_name(product) or "店铺信息以京东页面为准")
-    category_name = html.escape(str(getattr(product, "category_name", "") or ""))
-    image_url = html.escape(str(getattr(product, "image_url", "") or ""))
-    price_text = html.escape(_format_price_line(product))
-    reason_text = html.escape(_commercial_reason(product))
-    scene_val = scene or "today_recommend"
-    slot_val = int(slot or 1)
+    def _clean(value: object) -> str:
+        return html.escape(html.unescape(str(value or "")), quote=True)
 
-    image_block = ""
-    if image_url:
-        image_block = f'<img class="hero" src="{image_url}" alt="{title}" />'
+    title_raw = html.unescape(str(getattr(product, "title", "") or getattr(product, "sku_name", "") or "商品详情"))
+    title_html = _clean(title_raw)
+    price_html = _clean(_format_price_line(product))
+    reason_html = _clean(f"✨ 推荐理由：{_commercial_reason(product)}")
 
-    body = f"""
+    shop_name = html.unescape(str(getattr(product, "shop_name", "") or getattr(product, "merchant_name", "") or ""))
+    shop_html = f'<div class="meta">店铺：{_clean(shop_name)}</div>' if shop_name else ""
+
+    image_candidates = [
+        getattr(product, "image_url", ""),
+        getattr(product, "main_image_url", ""),
+        getattr(product, "image", ""),
+        getattr(product, "white_image", ""),
+    ]
+    hero_url = next((str(x).strip() for x in image_candidates if str(x or "").strip()), "")
+    hero_html = f'<img class="hero" src="{_clean(hero_url)}" alt="{title_html}" />' if hero_url else ""
+
+    detail_scene = str(scene or "today_recommend")
+    detail_slot = str(slot or "1")
+
+    return f"""<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>{title_html}</title>
+  <style>
+    body{{margin:0;background:#f8fafc;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;color:#0f172a;}}
+    .wrap{{max-width:760px;margin:0 auto;padding:18px 16px 40px;}}
+    .card{{background:#fff;border-radius:20px;padding:18px;box-shadow:0 6px 24px rgba(15,23,42,.06);margin-bottom:16px;}}
+    .title{{font-size:22px;font-weight:800;line-height:1.5;margin:14px 0 0;}}
+    .meta{{margin-top:10px;color:#64748b;line-height:1.8;font-size:14px;}}
+    .price{{margin-top:14px;padding:14px;border-radius:14px;background:#fff7ed;color:#9a3412;line-height:1.8;font-weight:700;}}
+    .reason{{margin-top:14px;color:#334155;line-height:1.8;}}
+    .hero{{width:100%;border-radius:16px;background:#fff;object-fit:cover;display:block;}}
+    .actions{{display:flex;gap:10px;flex-wrap:wrap;margin-top:16px;}}
+    .btn{{display:inline-block;padding:12px 16px;border-radius:12px;text-decoration:none;font-weight:700;}}
+    .btn-primary{{background:#0f172a;color:#fff;}}
+    .btn-secondary{{background:#e2e8f0;color:#0f172a;}}
+  </style>
+</head>
+<body>
+  <div class="wrap">
     <div class="card">
-      {image_block}
-      <div class="title" style="margin-top:14px;">{title}</div>
-      <div class="meta">店铺：{shop_name}<br/>分类：{category_name or "未分类"}</div>
-      <div class="price">💰 {price_text}</div>
-      <div class="reason">✨ 推荐理由：{reason_text}</div>
+      {hero_html}
+      <div class="title">{title_html}</div>
+      {shop_html}
+      <div class="price">{price_html}</div>
+      <div class="reason">{reason_html}</div>
       <div class="actions">
-        <a class="btn btn-secondary" href="{_more_like_this_url(product, scene=scene_val, slot=slot_val, wechat_openid=wechat_openid)}">{html.escape(LABEL_MORE)}</a>
-        <a class="btn btn-primary" href="{_promotion_url(product, wechat_openid=wechat_openid or 'h5_detail_openid', scene=scene_val, slot=slot_val)}">{html.escape(LABEL_BUY)}</a>
+        <a class="btn btn-secondary" href="{_detail_url(product, scene=detail_scene, slot=detail_slot, wechat_openid=wechat_openid)}">图文详情</a>
+        <a class="btn btn-primary" href="{_promotion_url(product, scene=detail_scene, slot=detail_slot, wechat_openid=wechat_openid)}">下单链接</a>
+        <a class="btn btn-secondary" href="{_more_like_this_url(product, scene=detail_scene, slot=detail_slot, wechat_openid=wechat_openid)}">更多同类产品</a>
       </div>
     </div>
-    """.strip()
-
-    return _html_shell(title, body)
+  </div>
+</body>
+</html>"""
 
 
 def render_more_like_this_h5(
