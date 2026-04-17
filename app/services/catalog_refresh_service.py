@@ -115,12 +115,21 @@ def refresh_keyword_catalog(
     inserted = 0
     updated = 0
     rows: list[dict[str, Any]] = []
+    seen_jd_sku_ids: set[str] = set()
 
     for item in items[:limit]:
         material_url = _pick_material_url(item)
         short_url = _build_short_link(client, material_url)
         live_row = _normalize_live_item(item, short_url=short_url)
         payload = _product_payload_from_live_row(live_row, keyword=keyword)
+
+        jd_sku_id = str(payload.get("jd_sku_id") or "").strip()
+        if not jd_sku_id:
+            continue
+        if jd_sku_id in seen_jd_sku_ids:
+            continue
+        seen_jd_sku_ids.add(jd_sku_id)
+        payload["jd_sku_id"] = jd_sku_id
 
         product, action = upsert_product(db, payload)
         if action == "inserted":

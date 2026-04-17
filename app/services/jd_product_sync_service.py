@@ -28,6 +28,16 @@ upsert_merchant_profile = getattr(_merchant_profile_service, "upsert_merchant_pr
 from app.services.product_compliance_service import enrich_product_payload_with_compliance
 
 
+def _find_pending_product_by_sku(db: Session, jd_sku_id: str) -> Product | None:
+    target = str(jd_sku_id or "").strip()
+    if not target:
+        return None
+    for obj in db.new:
+        if isinstance(obj, Product) and str(getattr(obj, "jd_sku_id", "") or "").strip() == target:
+            return obj
+    return None
+
+
 def _pick_image_url(item: dict[str, Any]) -> str | None:
     image_info = item.get("imageInfo") or {}
     if image_info.get("whiteImage"):
@@ -133,13 +143,26 @@ def normalize_jd_item(
 
 
 def upsert_product(db: Session, payload: dict[str, Any]) -> tuple[Product, str]:
-    product = db.query(Product).filter(Product.jd_sku_id == payload["jd_sku_id"]).first()
+    normalized_payload = dict(payload)
+    jd_sku_id = str(normalized_payload.get("jd_sku_id") or "").strip()
+    if not jd_sku_id:
+        raise ValueError("jd_sku_id is empty")
+
+    normalized_payload["jd_sku_id"] = jd_sku_id
+
+    pending_product = _find_pending_product_by_sku(db, jd_sku_id)
+    if pending_product:
+        for key, value in normalized_payload.items():
+            setattr(pending_product, key, value)
+        return pending_product, "updated"
+
+    product = db.query(Product).filter(Product.jd_sku_id == jd_sku_id).first()
     if product:
-        for key, value in payload.items():
+        for key, value in normalized_payload.items():
             setattr(product, key, value)
         return product, "updated"
 
-    product = Product(**payload)
+    product = Product(**normalized_payload)
     db.add(product)
     return product, "inserted"
 
