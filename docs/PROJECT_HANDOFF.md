@@ -22,9 +22,37 @@ AIdeal CPS（智省优选）是一个：
 - 当前主链路先打通：商品查询 -> 转链 -> 点击归因 -> 订单查询/返佣
 
 ## 4. 部署信息
-- Server user: deploy
-- Project path: /home/deploy/projects/aideal-cps
-- Codex auth path: /home/deploy/.codex/auth.json
+- 开发环境：新加坡机器 `43.106.55.255`
+- 开发用户：`cpsdev`
+- 开发路径：`/home/cpsdev/projects/aideal-cps`
+- 生产环境：杭州机器 `8.136.28.6`
+- 生产用户：`deploy`
+- 生产路径：`/home/deploy/projects/aideal-cps`
+- systemd：`aideal.service`
+- 注意：默认开发、编码、验证都先在新加坡机器完成；杭州机器只用于最终部署与验收
+
+## 4.1 2026-04-17 工程续接校准（当前 authoritative）
+- 当前线上成功基线：
+  - 菜单“今日推荐” -> 单次被动回复
+  - 消息形态 = `news` 图文卡片
+  - 一次返回 3 个商品
+  - 每个商品点进去进入 H5 详情或下单链路
+- 当前冻结边界：
+  - 微信通信基础链路：`app/api/wechat.py` -> `app/services/message_router.py` -> `app/services/wechat_service.py`
+  - 推荐运行时主入口：`app/services/wechat_recommend_runtime_service.py`
+  - JD 通信基础链路：`app/services/jd_union_client.py` 及其直接 API 边界
+- 当前允许改动层：
+  - runtime strategy layer
+  - recommendation selection layer
+  - user profile / behavior layer
+  - intent parsing layer
+  - H5 展示层
+  - partner business layer
+- 当前优先级已改为：
+  1. 修 docs / HANDOFF，使其成为新对话可信入口
+  2. 优化 `today_recommend` news item 展示结构
+  3. 统一“找商品”与自然语言商品请求到底层 recommendation runtime / intent orchestrator
+  4. 再做短链接、去重升级、欢迎语、合伙人中心细化
 
 ## 5. 京东联盟 1.0 API 已确认规则
 ### 5.1 公共规则
@@ -72,11 +100,11 @@ AIdeal CPS（智省优选）是一个：
 - 现阶段已确认：如果返回 403 无访问权限，则属于接口权限未生效或账号侧权限问题，不是签名错误
 
 ## 6. 当前系统下一阶段优先级
-1. 重构 JD 1.0 通用调用器
-2. 打通 jingfen.query
-3. 打通 promotion.bysubunionid.get
-4. 再对接订单查询
-5. 最后把 AI 推荐和免费模型池真正接入业务流
+1. 修正文档与 HANDOFF，固化开发/生产角色、成功基线、冻结边界和下一阶段优先级
+2. 仅在 `app/services/wechat_recommend_runtime_service.py` 内优化“今日推荐” news 卡片展示结构
+3. 新增商品意图识别与统一 recommendation orchestrator，让“找商品”菜单入口和自然语言文本入口共享底层选品框架
+4. 建立短链接与月度去重 / 疲劳度治理，但不得改动微信 / JD 通信基础链路
+5. 合伙人中心继续沿“分享分发 + 收益账本 + 支付开通”方向细化，支付密钥仍只放本地 `.env`
 
 ## 7. Codex / 新对话使用方式
 新对话先读取：

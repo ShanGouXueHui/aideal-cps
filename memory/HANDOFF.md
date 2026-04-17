@@ -21,19 +21,25 @@
 - Web：Nginx + FastAPI + uvicorn
 
 ## 四、当前确认过的关键事实
-1. 微信当前真实回调路径：/wechat/callback
+1. 微信当前真实回调路径：`/wechat/callback`
 2. 当前不切 AES 安全模式
-3. 推荐系统必须：
+3. “今日推荐”已切换为**单次被动 news 图文卡片**主链路，不再依赖客服消息二次/三次补发
+4. 当前线上成功基线定义为：
+   - 被动回复
+   - news 卡片
+   - 3 个商品
+   - 每个商品可点击进入 H5 详情或下单跳转链路
+5. 当前通信链路冻结：
+   - 微信 transport boundary 冻结
+   - JD transport boundary 冻结
+6. 当前推荐去重已实现的只是：
    - 当前轮次内不重复
    - 池耗尽后轮转
-   - 保持品类多样性
-4. 下单链路必须稳定：
-   - 自有 redirect
-   - 再 302 到 JD short_url
-5. 图文详情可用 H5
-6. “更多同类产品”当前为 H5，后续升级为公众号直接返回同类 3 条
-7. jingfen.query + promotion.bysubunionid.get 是当前稳定接口
-8. goods.query 当前不能作为商用主链路依赖
+   这不是长期商用目标，后续需要升级为月度去重 / 疲劳度治理
+7. 当前结构性缺口不是通信，而是：
+   - `today_recommend` 已统一到 runtime
+   - `find_product` 菜单入口已走 runtime
+   - 用户自然语言商品请求尚未完全统一到底层 recommendation runtime / intent parsing 编排层
 
 ## 五、当前工程问题
 1. 推荐/H5/redirect 曾被多轮临时修补，存在覆盖式修复历史
@@ -42,12 +48,12 @@
 4. 必须先做架构收口，再继续商用迭代
 
 ## 六、当前优先任务
-1. 做微信推荐链路架构审计
-2. 收口 wechat_recommend_h5_service.py 的重复实现
-3. 收口 promotion API 边界
-4. 固化推荐配置、文案配置、路径配置
-5. 建立开发机到生产机的稳定部署链路
-6. 持续更新 docs，保证 GitHub 成为长期记忆源
+1. 先修 docs / HANDOFF，使其成为新对话可信入口
+2. 基于当前成功基线，仅在 `app/services/wechat_recommend_runtime_service.py` 内优化 `today_recommend` news 卡片展示结构
+3. 统一“找商品”与自然语言商品请求到底层 recommendation runtime / intent orchestrator
+4. 设计短链接、月度去重 / 疲劳度治理、欢迎语升级
+5. 再继续细化合伙人中心、支付与收款闭环
+6. 默认开发验证都先在新加坡机器完成，杭州机器只做最终部署与验收
 
 ## 2026-04-17 transport freeze boundary
 

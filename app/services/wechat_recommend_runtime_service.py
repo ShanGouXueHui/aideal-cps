@@ -705,10 +705,37 @@ def _product_pic_url(product: Product) -> str:
     return ""
 
 
+def _sales_volume_label(product: Product) -> str:
+    sales = _to_int(getattr(product, "sales_volume", None))
+    if sales <= 0:
+        return ""
+    if sales >= 100000:
+        return f"热销{sales / 10000:.1f}万+".replace(".0万+", "万+")
+    if sales >= 10000:
+        return f"热销{sales / 10000:.1f}万+".replace(".0万+", "万+")
+    return f"热销{sales}+"
+
+def _news_value_line(product: Product) -> str:
+    saved = _saved_amount(product)
+    effective = _effective_price(product)
+    sales_text = _sales_volume_label(product)
+
+    if saved > 0:
+        if saved >= 10:
+            left = f"省¥{saved:.0f}"
+        else:
+            left = f"省¥{saved:.2f}".rstrip("0").rstrip(".")
+    elif effective > 0:
+        left = f"到手¥{effective:.2f}".rstrip("0").rstrip(".")
+    else:
+        left = "点开看实时价"
+
+    if sales_text:
+        return f"{left}｜{sales_text}"
+    return left
+
 def _news_description_for_product(product: Product) -> str:
-    price = str(_format_price_line(product) or "").replace("\n", " ").strip()
-    reason = str(_commercial_reason(product) or "").replace("\n", " ").strip()
-    text = f"{price}；{reason}".strip("； ")
+    text = _news_value_line(product).replace("\n", " ").strip()
     return text[:120]
 
 
@@ -726,14 +753,12 @@ def get_today_recommend_news_articles(db: Session, wechat_openid: str) -> list[d
 
     articles: list[dict[str, str]] = []
     for idx, product in enumerate(batch, 1):
-        title = html.unescape(str(getattr(product, "title", "") or getattr(product, "sku_name", "") or "商品"))
-        title = title.strip()
-        if len(title) > 28:
-            title = title[:27] + "…"
+        raw_title = html.unescape(str(getattr(product, "title", "") or getattr(product, "sku_name", "") or "商品"))
+        title = _wechat_safe_title(product, limit=24).strip() if raw_title else "商品"
 
         articles.append(
             {
-                "title": f"{idx}. {title}",
+                "title": title,
                 "description": _news_description_for_product(product),
                 "pic_url": _product_pic_url(product),
                 "url": _detail_url(
