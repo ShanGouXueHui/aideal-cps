@@ -129,3 +129,23 @@
 3. 新增商品意图识别模块与统一 recommendation orchestrator
 4. 引入短码 / 短链接与月度去重 / 疲劳度治理
 5. 升级欢迎语与合伙人中心，但不改动微信 / JD 通信边界
+
+## 4.1 2026-04-18 商品池与主动推荐池更新
+### 已新增
+- `goods.query` 已恢复为可用关键词补池来源，但仍视为商品池支路，不替代通信边界稳定性原则
+- `config/proactive_recommend_rules.json` 已上线，用于将“主动推荐池”与“普通可见商品池”分层
+- `wechat_recommend_runtime_service.py` 的 `_active_recommend_products()` 已接入：
+  - 合规可主动推荐过滤
+  - 商用类目配置过滤
+- `today_recommend` 当前推荐源已经不再只是“安全”，而是进一步偏向更适合微信内主动推荐的消费品池
+
+### 已完成的商品池治理
+- `jd_sku_id` 优先 numeric SKU
+- keyword refresh 事务内去重
+- 历史 non-numeric active 脏数据已做首轮退役
+- 高风险类目已通过 compliance 规则打标并从主动推荐池剔除
+
+### 当前口径
+- 入库 != 可主动推荐
+- `elite_refresh` 会继续同步更广商品集，但 runtime 主动推荐只读取过滤后的池
+- 菜单“今日推荐”当前基于过滤后的主动推荐池生成 3 条 news 图文卡片

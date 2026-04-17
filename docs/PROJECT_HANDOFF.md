@@ -716,3 +716,45 @@ P3 当前新增：
 - 后续业务调整只允许落在推荐运行时、规则配置、文案、H5 展示层；不得直接改动微信/JD 通信边界
 - 如需新增消息形态，必须新增独立适配层，不得在回调签名、消息路由、基础发包链路上继续叠 patch
 - 当前阶段以“通信稳定优先”高于“内容形态丰富度”
+
+## 4.2 2026-04-18 商品池治理与调度 authoritative
+- `jd.union.open.goods.query` 当前已恢复可用，关键修复：
+  - `goodsReqDTO`
+  - `sceneId=1`
+  - `sortName=inOrderCount30Days`
+- 夜间商品池刷新不再依赖 crontab，当前生产调度已切到：
+  - `aideal-catalog-refresh.timer`
+  - `aideal-catalog-refresh.service`
+- 当前运行文件：
+  - runner: `ops/systemd/run_catalog_refresh.sh`
+  - health check: `ops/check_catalog_refresh_health.sh`
+  - status file: `run/catalog_refresh_status.json`
+- 当前夜间任务稳定执行：
+  - `elite_refresh`
+  - `keyword_refresh`
+  - `inactive_cleanup`
+  - `purge_cleanup`
+- 当前关键词池已恢复到 4 个：
+  - 洗衣液
+  - 牙膏
+  - 抽纸
+  - 宝宝湿巾
+
+## 6.1 当前商品池治理口径（authoritative）
+- `jd_sku_id` 已改为：
+  - 优先 numeric SKU
+  - 历史联盟 item 风格 ID 逐步退役
+- 已修复 keyword refresh 在未 flush session 内重复插入导致的唯一索引冲突
+- 已新增商品合规收口：
+  - 维修服务 / 本地服务 -> hard_block
+  - 酒类 -> hard_block
+  - 宠物滴眼液 / 宠物药 / 农药 / 杀虫剂 -> hard_block
+  - 性功能暗示 / 医疗边缘商品 -> restricted 或 hard_block
+- 已新增主动推荐池配置过滤：
+  - 配置文件：`config/proactive_recommend_rules.json`
+  - 目标：将“安全可见”与“适合主动推荐”分层
+- 当前主动推荐池的实际口径为：
+  - `status=active`
+  - `allow_proactive_push=True`
+  - `merchant_recommendable=True`
+  - 命中 proactive recommend rules

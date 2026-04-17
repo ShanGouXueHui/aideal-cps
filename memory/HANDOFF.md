@@ -76,3 +76,42 @@
 - 后续业务调整只允许落在推荐运行时、规则配置、文案、H5 展示层；不得直接改动微信/JD 通信边界
 - 如需新增消息形态，必须新增独立适配层，不得在回调签名、消息路由、基础发包链路上继续叠 patch
 - 当前阶段以“通信稳定优先”高于“内容形态丰富度”
+
+## 2026-04-18 商品池治理 / systemd 调度 authoritative
+- `jd.union.open.goods.query` 已完成参数修复并恢复可用：
+  - wrapper 改为 `goodsReqDTO`
+  - 显式传 `sceneId=1`
+  - `sortName` 改为文档允许值 `inOrderCount30Days`
+- 夜间商品池刷新已从 cron 切换到 systemd timer：
+  - timer: `aideal-catalog-refresh.timer`
+  - service: `aideal-catalog-refresh.service`
+  - runner: `ops/systemd/run_catalog_refresh.sh`
+  - 状态文件: `run/catalog_refresh_status.json`
+  - 巡检脚本: `ops/check_catalog_refresh_health.sh`
+- `catalog_refresh` 当前稳定能力：
+  - `elite_refresh`
+  - `keyword_refresh`
+  - `inactive_cleanup`
+  - `purge_cleanup`
+- 当前启用关键词池：
+  - 洗衣液
+  - 牙膏
+  - 抽纸
+  - 宝宝湿巾
+- 商品池治理已新增：
+  - `jd_sku_id` 数字 SKU 优先归一化
+  - 事务内去重，避免 `products.ix_products_jd_sku_id` 冲突
+  - 合规规则收紧（维修/酒类/宠物药/农药/杀虫剂等）
+  - proactive recommend pool 配置化过滤：`config/proactive_recommend_rules.json`
+- 当前主动推荐池口径：
+  - `status=active`
+  - `allow_proactive_push=True`
+  - `merchant_recommendable=True`
+  - 通过 `config/proactive_recommend_rules.json` 做商用类目过滤
+- 历史脏数据已清理：
+  - active non-numeric `jd_sku_id` 已从 48 降到 2
+  - 主动推荐池已从 72 收到约 38~41
+- 当前主线已从“商品池修复”切回：
+  1. 菜单 / today_recommend / H5 表达优化
+  2. 找商品统一 intent/recommend orchestrator
+  3. 再做短链接、疲劳度治理、欢迎语、合伙人中心细化

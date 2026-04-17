@@ -54,3 +54,27 @@ AIdeal CPS（智省优选）是基于微信服务号的 AI 导购 + 京东联盟
 - 若开发机通过 SSH tunnel 连接生产库，必须先覆盖 `DATABASE_URL`
 - 然后再 import app 的 settings / db 模块
 - 否则 SQLAlchemy engine 会缓存旧配置，导致验证结果失真
+
+## 8. 2026-04-18 当前新增系统能力
+### 8.1 商品池刷新调度
+- 生产当前已切换为 systemd timer 调度：
+  - `aideal-catalog-refresh.timer`
+  - `aideal-catalog-refresh.service`
+- 巡检入口：
+  - `ops/check_catalog_refresh_health.sh`
+- 状态文件：
+  - `run/catalog_refresh_status.json`
+
+### 8.2 商品池治理
+- `goods.query` 参数已与京东文档对齐
+- keyword refresh 已修复 session 未提交状态下的重复插入问题
+- `jd_sku_id` 已优先 numeric SKU，历史 non-numeric active 脏数据已做首轮归并清理
+
+### 8.3 主动推荐池治理
+- 当前“主动推荐池”不再等同于“所有 normal 商品”
+- 已新增：
+  - `config/proactive_recommend_rules.json`
+  - runtime 主动推荐池配置过滤
+- 当前设计原则：
+  - 合规过滤解决“能不能展示”
+  - proactive pool 过滤解决“适不适合主动推荐”
