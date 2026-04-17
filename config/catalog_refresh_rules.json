@@ -11,7 +11,7 @@
   ],
   "elite_sync_limit": 20,
   "keyword_sync_limit": 12,
-  "goods_query_sort_name": "inOrderCount30DaysSku",
+  "goods_query_sort_name": "inOrderCount30Days",
   "goods_query_sort": "desc",
   "expire_hours": 72,
   "purge_hours": 240

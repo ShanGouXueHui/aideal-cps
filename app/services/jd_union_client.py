@@ -175,12 +175,14 @@ class JDUnionClient:
         sort: str | None = None,
         fields: str | None = None,
         owner: str | None = None,
+        scene_id: int = 1,
         extra_goods_req: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         goods_req: dict[str, Any] = {
             "keyword": keyword,
             "pageIndex": page_index,
             "pageSize": page_size,
+            "sceneId": scene_id,
         }
         if self.pid:
             goods_req["pid"] = self.pid
@@ -194,7 +196,7 @@ class JDUnionClient:
             goods_req["owner"] = owner
         if extra_goods_req:
             goods_req.update(extra_goods_req)
-        return self.request("jd.union.open.goods.query", {"goodsReq": goods_req})
+        return self.request("jd.union.open.goods.query", {"goodsReqDTO": goods_req})
 
     def promotion_bysubunionid_get(
         self,

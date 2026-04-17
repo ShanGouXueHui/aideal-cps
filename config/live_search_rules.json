@@ -3,6 +3,6 @@
   "local_result_threshold": 3,
   "live_page_size": 12,
   "live_keep_top_n": 3,
-  "default_sort_name": "inOrderCount30DaysSku",
+  "default_sort_name": "inOrderCount30Days",
   "default_sort": "desc"
 }
