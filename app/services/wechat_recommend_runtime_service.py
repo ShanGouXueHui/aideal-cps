@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 
 from app.models.product import Product
 from app.models.wechat_recommend_exposure import WechatRecommendExposure
+from app.services.product_compliance_service import apply_product_visibility_filter
 
 
 def _cfg() -> dict[str, Any]:
@@ -180,6 +181,10 @@ def _active_recommend_products(db: Session) -> list[Product]:
         db.query(Product)
         .filter(Product.status == "active")
         .filter(Product.short_url.isnot(None), Product.short_url != "")
+    )
+    q = apply_product_visibility_filter(
+        q,
+        require_proactive_push=True,
     )
     merchant_recommendable = getattr(Product, "merchant_recommendable", None)
     if merchant_recommendable is not None:
@@ -374,18 +379,18 @@ def _commercial_reason(product: Product) -> str:
     merchant = _to_float(getattr(product, "merchant_health_score", None))
     flagship = _is_flagship_or_self_operated(product)
 
-    if saved >= 20 or saved_rate >= 0.30:
+    if saved >= 20 or saved_rate >= 0.25:
         if sales >= 100:
-            return "这类单子更容易触发“占便宜+损失厌恶”：当前价差已经拉开，销量也不弱，继续观望的机会成本更高。"
-        return "这类单子更容易触发“占便宜”心理：当前价差已经拉开，先点进去看实时页面，判断成本最低。"
+            return "价差已经拉开，也有人在买，属于更适合先点开实时页、再决定下不下单的商品。"
+        return "这类商品更适合先冲着省钱去看实时页：先确认到手价，再决定是否下单，决策成本最低。"
 
-    if sales >= 200:
-        return "这类商品更容易承接“从众+损失厌恶”心理：已经有不少人下单，继续拖延的心理成本会更高。"
+    if sales >= 1000:
+        return "这类商品更吃“从众+省心”心理：销量基础更稳，不想反复比价时更适合先看实时页。"
 
     if flagship or merchant >= 85:
-        return "这类商品更适合“品质/省心”场景：店铺确定性更高，先看详情再下单，决策负担更低。"
+        return "店铺确定性更高，适合想省心下单时优先看一眼，先确认当前到手门槛再决定。"
 
-    return "它的核心不是噱头，而是帮用户减少比较动作：先看详情，再按实时页面决定是否下单，会更省时间。"
+    return "信息已经比较完整，适合先看实时页面，再决定是否下单，不必先花时间做无效比较。"
 
 
 
@@ -603,7 +608,6 @@ def render_product_h5(product: Product, *, scene: str = "", slot: str = "", wech
       <div class="price">{price_html}</div>
       <div class="reason">{reason_html}</div>
       <div class="actions">
-        <a class="btn btn-secondary" href="{_detail_url(product, scene=detail_scene, slot=detail_slot, wechat_openid=wechat_openid)}">图文详情</a>
         <a class="btn btn-primary" href="{_promotion_url(product, scene=detail_scene, slot=detail_slot, wechat_openid=wechat_openid)}">下单链接</a>
         <a class="btn btn-secondary" href="{_more_like_this_url(product, scene=detail_scene, slot=detail_slot, wechat_openid=wechat_openid)}">更多同类产品</a>
       </div>
@@ -625,31 +629,94 @@ def render_more_like_this_h5(
     if not base_product:
         return _html_shell("商品不存在", '<div class="card"><div class="title">商品不存在</div></div>')
 
-    rows = _active_recommend_products(db)
-    rows = [x for x in rows if int(x.id) != int(product_id)]
+    rows = [x for x in _active_recommend_products(db) if int(x.id) != int(product_id)]
+
+    generic_tokens = {
+        "京东", "自营", "官方", "旗舰", "旗舰店", "品牌", "品牌店", "专卖店", "专营店",
+        "商品", "礼盒", "套装", "活动", "家用", "便携", "ml", "l", "kg", "g", "盒", "袋", "瓶", "支", "片",
+    }
+
+    def _norm_tokens(text: str) -> list[str]:
+        raw = re.findall(r"[a-z0-9\u4e00-\u9fff]+", str(text or "").lower())
+        out: list[str] = []
+        for tok in raw:
+            if tok.isdigit() or len(tok) < 2:
+                continue
+            if tok in generic_tokens:
+                continue
+            out.append(tok)
+        return out
+
+    def _brand_tokens(product: Product) -> set[str]:
+        out: set[str] = set()
+        shop = _shop_key(product)
+        if shop:
+            out.add(shop)
+        title = str(getattr(product, "title", "") or "")
+        for tok in _norm_tokens(title):
+            out.add(tok)
+            if len(out) >= 6:
+                break
+        return out
 
     base_cat = _category_key(base_product)
     base_shop = _shop_key(base_product)
+    base_brand = _brand_tokens(base_product)
+    base_tokens = set(_norm_tokens(str(getattr(base_product, "title", "") or "")))
 
-    if base_cat:
-        same_bucket = [x for x in rows if _category_key(x) == base_cat]
-        if same_bucket:
-            rows = same_bucket
-    elif base_shop:
-        same_bucket = [x for x in rows if _shop_key(x) == base_shop]
-        if same_bucket:
-            rows = same_bucket
+    scored: list[tuple[int, Product]] = []
+    for x in rows:
+        cand_cat = _category_key(x)
+        cand_shop = _shop_key(x)
+        cand_brand = _brand_tokens(x)
+        cand_tokens = set(_norm_tokens(str(getattr(x, "title", "") or "")))
 
-    rows = sorted(
-        rows,
-        key=lambda x: (
-            _score(x),
-            _to_int(getattr(x, "sales_volume", None)),
-            int(getattr(x, "id", 0) or 0),
+        same_cat = bool(base_cat and cand_cat and cand_cat == base_cat)
+        same_shop = bool(base_shop and cand_shop and cand_shop == base_shop)
+        same_brand = bool(base_brand and cand_brand and (base_brand & cand_brand))
+        token_overlap = base_tokens & cand_tokens
+        same_use = len(token_overlap) >= 2 or (same_cat and len(token_overlap) >= 1)
+
+        if not (same_shop or same_brand or same_use):
+            continue
+
+        score = 0
+        if same_shop:
+            score += 5
+        if same_brand:
+            score += 5
+        if same_cat:
+            score += 4
+        score += min(len(token_overlap), 3) * 2
+
+        scored.append((score, x))
+
+    scored = sorted(
+        scored,
+        key=lambda item: (
+            item[0],
+            _score(item[1]),
+            _to_int(getattr(item[1], "sales_volume", None)),
+            int(getattr(item[1], "id", 0) or 0),
         ),
         reverse=True,
     )
-    rows = _pick_diverse(rows, 3)
+
+    picked: list[Product] = []
+    seen_ids: set[int] = set()
+    seen_titles: set[str] = set()
+    for _, x in scored:
+        pid = int(x.id)
+        titlek = _title_key(x)
+        if pid in seen_ids or titlek in seen_titles:
+            continue
+        picked.append(x)
+        seen_ids.add(pid)
+        seen_titles.add(titlek)
+        if len(picked) >= 3:
+            break
+
+    rows = picked
 
     cards: list[str] = []
     scene_val = scene or "more_like_this"
@@ -657,14 +724,10 @@ def render_more_like_this_h5(
 
     for idx, x in enumerate(rows, 1):
         title = html.escape(str(getattr(x, "title", "") or ""))
+        shop_name = html.escape(str(getattr(x, "shop_name", "") or ""))
+        shop_html = f'<div class="meta">店铺：{shop_name}</div>' if shop_name else ""
         price_text = html.escape(_format_price_line(x))
         reason_text = html.escape(_commercial_reason(x))
-        detail_link = _detail_url(
-            x,
-            scene=scene_val,
-            slot=slot_base + idx,
-            wechat_openid=wechat_openid,
-        )
         buy_link = _promotion_url(
             x,
             wechat_openid=wechat_openid or "more_like_this_openid",
@@ -675,10 +738,10 @@ def render_more_like_this_h5(
             f"""
             <div class="card">
               <div class="title">{idx}. {title}</div>
+              {shop_html}
               <div class="price">💰 {price_text}</div>
               <div class="reason">✨ 推荐理由：{reason_text}</div>
               <div class="actions">
-                <a class="btn btn-secondary" href="{detail_link}">{html.escape(LABEL_DETAIL)}</a>
                 <a class="btn btn-primary" href="{buy_link}">{html.escape(LABEL_BUY)}</a>
               </div>
             </div>
@@ -688,13 +751,16 @@ def render_more_like_this_h5(
     intro = """
     <div class="card">
       <div class="title">更多同类产品</div>
-      <div class="meta">基于当前商品分类/店铺相近度，补充 3 个可继续对比的同类商品。</div>
+      <div class="meta">按同类目 / 同品牌 / 同用途相似度补充 1-3 个更接近的商品；如果不够接近，就不强行塞不相关商品。</div>
     </div>
     """.strip()
 
-    body = intro + "\n" + ("\n".join(cards) if cards else '<div class="card"><div class="title">当前还没有更多同类商品。</div></div>')
-    return _html_shell("更多同类产品", body)
+    if rows:
+        body = intro + "\n" + "\n".join(cards)
+    else:
+        body = intro + "\n" + '<div class="card"><div class="title">当前商品池里还没有足够接近的同类商品。</div><div class="meta">宁可少推荐，也不乱塞不相关商品。</div></div>'
 
+    return _html_shell("更多同类产品", body)
 
 # === today recommend news article builder start ===
 def _product_pic_url(product: Product) -> str:
@@ -707,10 +773,8 @@ def _product_pic_url(product: Product) -> str:
 
 def _sales_volume_label(product: Product) -> str:
     sales = _to_int(getattr(product, "sales_volume", None))
-    if sales <= 0:
+    if sales < 100:
         return ""
-    if sales >= 100000:
-        return f"热销{sales / 10000:.1f}万+".replace(".0万+", "万+")
     if sales >= 10000:
         return f"热销{sales / 10000:.1f}万+".replace(".0万+", "万+")
     return f"热销{sales}+"
@@ -738,6 +802,20 @@ def _news_description_for_product(product: Product) -> str:
     text = _news_value_line(product).replace("\n", " ").strip()
     return text[:120]
 
+def _news_title_for_product(product: Product) -> str:
+    value = _news_value_line(product).replace("｜", " ").strip()
+    if not value:
+        return _wechat_safe_title(product, limit=24).strip() or "商品"
+
+    max_total = 28
+    available = max(8, max_total - len(value) - 1)
+    core = _wechat_safe_title(product, limit=available).strip() or "商品"
+    title = f"{core}｜{value}"
+    if len(title) <= max_total:
+        return title
+
+    core = _wechat_safe_title(product, limit=max(6, available - 2)).strip() or "商品"
+    return f"{core}｜{value}"[:max_total]
 
 def get_today_recommend_news_articles(db: Session, wechat_openid: str) -> list[dict[str, str]]:
     batch = _select_today_batch(db, wechat_openid=wechat_openid)
@@ -753,8 +831,7 @@ def get_today_recommend_news_articles(db: Session, wechat_openid: str) -> list[d
 
     articles: list[dict[str, str]] = []
     for idx, product in enumerate(batch, 1):
-        raw_title = html.unescape(str(getattr(product, "title", "") or getattr(product, "sku_name", "") or "商品"))
-        title = _wechat_safe_title(product, limit=24).strip() if raw_title else "商品"
+        title = _news_title_for_product(product)
 
         articles.append(
             {
