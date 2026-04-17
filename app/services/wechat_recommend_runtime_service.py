@@ -3,7 +3,9 @@ from __future__ import annotations
 import hashlib
 import html
 import json
+from functools import lru_cache
 import re
+from pathlib import Path
 from typing import Any
 from urllib.parse import quote
 
@@ -12,6 +14,73 @@ from sqlalchemy.orm import Session
 from app.models.product import Product
 from app.models.wechat_recommend_exposure import WechatRecommendExposure
 from app.services.product_compliance_service import apply_product_visibility_filter
+
+
+CONFIG_DIR = Path(__file__).resolve().parents[2] / "config"
+
+
+@lru_cache(maxsize=1)
+def _proactive_recommend_cfg() -> dict[str, Any]:
+    try:
+        path = CONFIG_DIR / "proactive_recommend_rules.json"
+        data = json.loads(path.read_text(encoding="utf-8"))
+        return data if isinstance(data, dict) else {}
+    except Exception:
+        return {}
+
+
+def _cfg_text_list(value: Any) -> list[str]:
+    if not isinstance(value, list):
+        return []
+    return [str(x).strip().lower() for x in value if str(x).strip()]
+
+
+def _norm_text(value: Any) -> str:
+    return str(value or "").strip().lower()
+
+
+def _contains_any_keyword(text: str, keywords: list[str]) -> bool:
+    return any(k and k in text for k in keywords)
+
+
+def _is_commercial_proactive_candidate(product: Product) -> bool:
+    cfg = _proactive_recommend_cfg()
+    if not cfg.get("enabled", True):
+        return True
+
+    title_text = _norm_text(getattr(product, "title", None))
+    category_text = _norm_text(getattr(product, "category_name", None))
+    shop_text = _norm_text(getattr(product, "shop_name", None))
+
+    include_category_keywords = _cfg_text_list(cfg.get("include_category_keywords"))
+    exclude_category_keywords = _cfg_text_list(cfg.get("exclude_category_keywords"))
+    exclude_title_keywords = _cfg_text_list(cfg.get("exclude_title_keywords"))
+    exclude_shop_keywords = _cfg_text_list(cfg.get("exclude_shop_keywords"))
+
+    if exclude_category_keywords and _contains_any_keyword(category_text, exclude_category_keywords):
+        return False
+    if exclude_title_keywords and _contains_any_keyword(title_text, exclude_title_keywords):
+        return False
+    if exclude_shop_keywords and _contains_any_keyword(shop_text, exclude_shop_keywords):
+        return False
+
+    if include_category_keywords and not _contains_any_keyword(category_text, include_category_keywords):
+        return False
+
+    return True
+
+
+def _filter_commercial_proactive_pool(products: list[Product]) -> list[Product]:
+    cfg = _proactive_recommend_cfg()
+    if not cfg.get("enabled", True):
+        return products
+
+    filtered = [p for p in products if _is_commercial_proactive_candidate(p)]
+    if cfg.get("fallback_to_base_pool", False):
+        min_candidates = int(cfg.get("fallback_min_candidates", 0) or 0)
+        if len(filtered) < min_candidates:
+            return products
+    return filtered
 
 
 def _cfg() -> dict[str, Any]:
@@ -189,7 +258,8 @@ def _active_recommend_products(db: Session) -> list[Product]:
     merchant_recommendable = getattr(Product, "merchant_recommendable", None)
     if merchant_recommendable is not None:
         q = q.filter(merchant_recommendable == True)
-    return q.all()
+    rows = q.all()
+    return _filter_commercial_proactive_pool(rows)
 
 
 def _score(product: Product) -> float:
