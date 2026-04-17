@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from decimal import Decimal
+import re
 from typing import Any
 
 from app.services.jd_union_client import (
@@ -54,6 +55,35 @@ def _pick_material_url(item: dict[str, Any]) -> str | None:
     if sku_id:
         return f"https://item.m.jd.com/product/{sku_id}.html"
     return None
+
+
+def _extract_sku_id_from_material_url(material_url: str | None) -> str | None:
+    text = str(material_url or "")
+    m = re.search(r"/product/(\d+)\.html", text)
+    if m:
+        return m.group(1)
+    m = re.search(r"/(\d+)\.html", text)
+    if m:
+        return m.group(1)
+    return None
+
+
+def _pick_jd_sku_id(item: dict[str, Any], material_url: str | None) -> str:
+    for key in ("skuId", "wareId", "spuid"):
+        value = item.get(key)
+        if value is not None and str(value).strip().isdigit():
+            return str(value).strip()
+
+    parsed = _extract_sku_id_from_material_url(material_url)
+    if parsed:
+        return parsed
+
+    for key in ("itemId", "oriItemId", "callerItemId"):
+        value = item.get(key)
+        if value is not None and str(value).strip():
+            return str(value).strip()
+
+    return str(material_url or "")
 
 
 def _to_decimal(value: Any) -> Decimal:
@@ -117,7 +147,7 @@ def _normalize_live_item(item: dict[str, Any], short_url: str | None = None) -> 
 
     return {
         "source": "jd_live",
-        "jd_sku_id": str(item.get("skuId") or item.get("wareId") or item.get("itemId") or material_url or ""),
+        "jd_sku_id": _pick_jd_sku_id(item, material_url),
         "title": title,
         "image_url": _pick_image_url(item),
         "material_url": material_url,

@@ -2,57 +2,101 @@
   "default_compliance_level": "normal",
   "hard_block_keywords": {
     "title": [
-      "防狼",
-      "辣椒水",
-      "喷雾剂",
-      "喷雾",
-      "电击",
-      "甩棍",
-      "弓弩",
-      "钢珠",
-      "子弹",
-      "枪",
-      "开刃刀",
-      "管制刀",
+      "上门服务",
       "催情",
-      "迷药",
-      "处方药",
       "冰毒",
+      "啤酒",
+      "喷雾",
+      "喷雾剂",
+      "处方药",
       "大麻",
-      "黄赌毒",
+      "威士忌",
+      "子弹",
+      "宠物滴眼液",
+      "家电维修",
+      "开刃刀",
+      "弓弩",
       "情色视频",
-      "成人视频"
+      "成人视频",
+      "换屏",
+      "枪",
+      "水电维修",
+      "洋酒",
+      "滴眼液",
+      "甩棍",
+      "电击",
+      "电工上门",
+      "白酒",
+      "眼药水",
+      "管制刀",
+      "红酒",
+      "维修服务",
+      "腐骨修复",
+      "葡萄酒",
+      "角膜修复",
+      "角膜炎",
+      "辣椒水",
+      "迷药",
+      "钢珠",
+      "防狼",
+      "黄赌毒"
     ],
     "category": [
-      "防身",
+      "上门维修",
       "军警",
-      "武器",
+      "刀具",
+      "本地生活",
       "枪械",
-      "刀具"
+      "武器",
+      "维修服务",
+      "酒类",
+      "防身"
     ]
   },
   "restricted_keywords": {
     "title": [
-      "成人用品",
-      "情趣",
-      "飞机杯",
-      "跳蛋",
-      "震动棒",
-      "自慰",
-      "润滑液",
+      "兽药",
+      "勃起",
+      "医用",
+      "安全套",
+      "宠物药",
       "延时喷剂",
+      "性欲",
+      "情趣",
+      "成人用品",
+      "润滑液",
+      "男荷尔蒙",
+      "自慰",
+      "荷尔蒙",
+      "跳蛋",
       "避孕套",
-      "安全套"
+      "震动棒",
+      "飞机杯"
     ],
     "category": [
-      "成人用品",
+      "兽药",
+      "医疗器械",
+      "宠物药",
       "情趣用品",
+      "成人用品",
       "计生用品"
     ]
   },
-  "jd_forbid_types_restricted": [10, 11],
-  "partner_share_allowed_levels": ["normal"],
-  "proactive_push_allowed_levels": ["normal"],
-  "adult_visible_levels": ["normal", "restricted"],
-  "minor_visible_levels": ["normal"]
+  "jd_forbid_types_restricted": [
+    10,
+    11
+  ],
+  "partner_share_allowed_levels": [
+    "normal"
+  ],
+  "proactive_push_allowed_levels": [
+    "normal"
+  ],
+  "adult_visible_levels": [
+    "normal",
+    "restricted"
+  ],
+  "minor_visible_levels": [
+    "normal"
+  ]
 }

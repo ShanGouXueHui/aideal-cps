@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from decimal import Decimal
+import re
 from typing import Any
 
 from sqlalchemy.orm import Session
@@ -54,6 +55,35 @@ def _coupon_summary(item: dict[str, Any]) -> str | None:
     return None
 
 
+def _extract_sku_id_from_material_url(material_url: str | None) -> str | None:
+    text = str(material_url or "")
+    m = re.search(r"/product/(\d+)\.html", text)
+    if m:
+        return m.group(1)
+    m = re.search(r"/(\d+)\.html", text)
+    if m:
+        return m.group(1)
+    return None
+
+
+def _pick_jd_sku_id(item: dict[str, Any], material_url: str | None) -> str:
+    for key in ("skuId", "wareId", "spuid"):
+        value = item.get(key)
+        if value is not None and str(value).strip().isdigit():
+            return str(value).strip()
+
+    parsed = _extract_sku_id_from_material_url(material_url)
+    if parsed:
+        return parsed
+
+    for key in ("itemId", "oriItemId", "callerItemId"):
+        value = item.get(key)
+        if value is not None and str(value).strip():
+            return str(value).strip()
+
+    return str(material_url or "")
+
+
 def normalize_jd_item(
     item: dict[str, Any],
     short_url: str | None = None,
@@ -65,9 +95,7 @@ def normalize_jd_item(
     shop_info = item.get("shopInfo") or {}
     resource_info = item.get("resourceInfo") or {}
     material_url = item.get("materialUrl")
-    jd_sku_id = str(
-        item.get("skuId") or item.get("spuid") or item.get("itemId") or material_url or ""
-    )
+    jd_sku_id = _pick_jd_sku_id(item, material_url)
     merchant_snapshot = merchant_snapshot or {}
 
     payload = {
