@@ -29,6 +29,26 @@ def _proactive_recommend_cfg() -> dict[str, Any]:
         return {}
 
 
+@lru_cache(maxsize=1)
+def _recommend_copy_cfg() -> dict[str, Any]:
+    try:
+        path = CONFIG_DIR / "recommend_copy_rules.json"
+        data = json.loads(path.read_text(encoding="utf-8"))
+        return data if isinstance(data, dict) else {}
+    except Exception:
+        return {}
+
+
+def _copy_text(group: str, key: str, default: str) -> str:
+    cfg = _recommend_copy_cfg()
+    section = cfg.get(group) or {}
+    if isinstance(section, dict):
+        value = str(section.get(key) or "").strip()
+        if value:
+            return value
+    return default
+
+
 def _cfg_text_list(value: Any) -> list[str]:
     if not isinstance(value, list):
         return []
@@ -609,6 +629,9 @@ def _html_shell(title: str, body: str) -> str:
     .price{{margin-top:14px;padding:14px;border-radius:14px;background:#fff7ed;color:#9a3412;line-height:1.8;font-weight:700;}}
     .reason{{margin-top:14px;color:#334155;line-height:1.8;}}
     .hero{{width:100%;border-radius:16px;background:#fff;object-fit:cover;display:block;}}
+    .badges{{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;}}
+    .badge{{display:inline-flex;align-items:center;padding:6px 10px;border-radius:999px;background:#f1f5f9;color:#334155;font-size:12px;font-weight:700;}}
+    .match{{margin-top:12px;color:#0f172a;font-size:13px;font-weight:700;}}
     .actions{{display:flex;gap:10px;flex-wrap:wrap;margin-top:16px;}}
     .btn{{display:inline-block;padding:12px 16px;border-radius:12px;text-decoration:none;font-weight:700;}}
     .btn-primary{{background:#0f172a;color:#fff;}}
@@ -624,17 +647,87 @@ def _html_shell(title: str, body: str) -> str:
 """.strip()
 
 
+def _recommend_reason_short(product: Product) -> str:
+    saved = _saved_amount(product)
+    sales = _to_int(getattr(product, "sales_volume", None))
+    merchant = _to_float(getattr(product, "merchant_health_score", None))
+    flagship = _is_flagship_or_self_operated(product)
+
+    if saved >= 20 and sales >= 1000:
+        return _copy_text("h5_reason_templates", "high_save_hot", "价差已经拉开，销量也稳，适合直接看实时到手价。")
+    if saved >= 10:
+        return _copy_text("h5_reason_templates", "high_save", "当前有明显价差，先看实时页确认到手门槛更划算。")
+    if sales >= 10000:
+        return _copy_text("h5_reason_templates", "hot", "这类商品销量更稳，适合少比价、先看实时页。")
+    if flagship or merchant >= 85:
+        return _copy_text("h5_reason_templates", "flagship", "店铺确定性更高，适合想省心下单时优先看一眼。")
+    return _copy_text("h5_reason_templates", "default", "信息已经比较完整，先看实时页再决定是否下单。")
+
+
+def _recommend_reason_tags(product: Product) -> list[str]:
+    saved = _saved_amount(product)
+    effective = _effective_price(product)
+    sales = _to_int(getattr(product, "sales_volume", None))
+    merchant = _to_float(getattr(product, "merchant_health_score", None))
+    flagship = _is_flagship_or_self_operated(product)
+
+    tags: list[str] = []
+    if saved >= 10:
+        tags.append(_copy_text("reason_tag_labels", "save", "价差明显"))
+    elif effective > 0:
+        tags.append(_copy_text("reason_tag_labels", "price", "到手可看"))
+
+    if sales >= 10000:
+        tags.append(_copy_text("reason_tag_labels", "hot", "销量稳定"))
+    elif sales >= 1000:
+        tags.append(_copy_text("reason_tag_labels", "warm", "热销中"))
+
+    if flagship or merchant >= 85:
+        tags.append(_copy_text("reason_tag_labels", "flagship", "店铺省心"))
+
+    uniq: list[str] = []
+    seen: set[str] = set()
+    for tag in tags:
+        if tag and tag not in seen:
+            uniq.append(tag)
+            seen.add(tag)
+    return uniq[:3]
+
+
+def _same_reason_text(*, same_shop: bool, same_brand: bool, same_cat: bool, same_use: bool) -> str:
+    labels: list[str] = []
+    if same_shop:
+        labels.append(_copy_text("match_reason_labels", "same_shop", "同店铺"))
+    elif same_brand:
+        labels.append(_copy_text("match_reason_labels", "same_brand", "同品牌"))
+    if same_cat:
+        labels.append(_copy_text("match_reason_labels", "same_category", "同类目"))
+    if same_use and not same_cat:
+        labels.append(_copy_text("match_reason_labels", "same_use", "同用途"))
+    if labels:
+        return " / ".join(labels[:2])
+    return _copy_text("match_reason_labels", "fallback", "相似用途")
+
+
 def render_product_h5(product: Product, *, scene: str = "", slot: str = "", wechat_openid: str = "") -> str:
     def _clean(value: object) -> str:
         return html.escape(html.unescape(str(value or "")), quote=True)
 
     title_raw = html.unescape(str(getattr(product, "title", "") or getattr(product, "sku_name", "") or "商品详情"))
     title_html = _clean(title_raw)
+    value_html = _clean(_news_value_line(product))
     price_html = _clean(_format_price_line(product))
-    reason_html = _clean(f"✨ 推荐理由：{_commercial_reason(product)}")
+    reason_html = _clean(_recommend_reason_short(product))
+    section_reason_title = _clean(_copy_text("section_copy", "h5_reason_title", "为什么值得看"))
+    price_prefix = _clean(_copy_text("section_copy", "h5_price_prefix", "到手参考："))
 
     shop_name = html.unescape(str(getattr(product, "shop_name", "") or getattr(product, "merchant_name", "") or ""))
     shop_html = f'<div class="meta">店铺：{_clean(shop_name)}</div>' if shop_name else ""
+
+    tags = _recommend_reason_tags(product)
+    badges_html = ""
+    if tags:
+        badges_html = '<div class="badges">' + "".join(f'<span class="badge">{_clean(x)}</span>' for x in tags) + '</div>'
 
     image_candidates = [
         getattr(product, "image_url", ""),
@@ -660,9 +753,13 @@ def render_product_h5(product: Product, *, scene: str = "", slot: str = "", wech
     .card{{background:#fff;border-radius:20px;padding:18px;box-shadow:0 6px 24px rgba(15,23,42,.06);margin-bottom:16px;}}
     .title{{font-size:22px;font-weight:800;line-height:1.5;margin:14px 0 0;}}
     .meta{{margin-top:10px;color:#64748b;line-height:1.8;font-size:14px;}}
-    .price{{margin-top:14px;padding:14px;border-radius:14px;background:#fff7ed;color:#9a3412;line-height:1.8;font-weight:700;}}
-    .reason{{margin-top:14px;color:#334155;line-height:1.8;}}
+    .price{{margin-top:14px;padding:14px;border-radius:14px;background:#fff7ed;color:#9a3412;line-height:1.8;font-weight:800;font-size:18px;}}
+    .price-detail{{margin-top:10px;color:#64748b;line-height:1.8;font-size:14px;}}
+    .reason-title{{margin-top:14px;font-size:14px;font-weight:800;color:#0f172a;}}
+    .reason{{margin-top:8px;color:#334155;line-height:1.8;}}
     .hero{{width:100%;border-radius:16px;background:#fff;object-fit:cover;display:block;}}
+    .badges{{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;}}
+    .badge{{display:inline-flex;align-items:center;padding:6px 10px;border-radius:999px;background:#f1f5f9;color:#334155;font-size:12px;font-weight:700;}}
     .actions{{display:flex;gap:10px;flex-wrap:wrap;margin-top:16px;}}
     .btn{{display:inline-block;padding:12px 16px;border-radius:12px;text-decoration:none;font-weight:700;}}
     .btn-primary{{background:#0f172a;color:#fff;}}
@@ -675,7 +772,10 @@ def render_product_h5(product: Product, *, scene: str = "", slot: str = "", wech
       {hero_html}
       <div class="title">{title_html}</div>
       {shop_html}
-      <div class="price">{price_html}</div>
+      <div class="price">{value_html}</div>
+      <div class="price-detail">{price_prefix}{price_html}</div>
+      {badges_html}
+      <div class="reason-title">{section_reason_title}</div>
       <div class="reason">{reason_html}</div>
       <div class="actions">
         <a class="btn btn-primary" href="{_promotion_url(product, scene=detail_scene, slot=detail_slot, wechat_openid=wechat_openid)}">下单链接</a>
@@ -734,7 +834,7 @@ def render_more_like_this_h5(
     base_brand = _brand_tokens(base_product)
     base_tokens = set(_norm_tokens(str(getattr(base_product, "title", "") or "")))
 
-    scored: list[tuple[int, Product]] = []
+    scored: list[tuple[int, str, Product]] = []
     for x in rows:
         cand_cat = _category_key(x)
         cand_shop = _shop_key(x)
@@ -759,15 +859,21 @@ def render_more_like_this_h5(
             score += 4
         score += min(len(token_overlap), 3) * 2
 
-        scored.append((score, x))
+        match_reason = _same_reason_text(
+            same_shop=same_shop,
+            same_brand=same_brand,
+            same_cat=same_cat,
+            same_use=same_use,
+        )
+        scored.append((score, match_reason, x))
 
     scored = sorted(
         scored,
         key=lambda item: (
             item[0],
-            _score(item[1]),
-            _to_int(getattr(item[1], "sales_volume", None)),
-            int(getattr(item[1], "id", 0) or 0),
+            _score(item[2]),
+            _to_int(getattr(item[2], "sales_volume", None)),
+            int(getattr(item[2], "id", 0) or 0),
         ),
         reverse=True,
     )
@@ -775,11 +881,12 @@ def render_more_like_this_h5(
     picked: list[Product] = []
     seen_ids: set[int] = set()
     seen_titles: set[str] = set()
-    for _, x in scored:
+    for _, match_reason, x in scored:
         pid = int(x.id)
         titlek = _title_key(x)
         if pid in seen_ids or titlek in seen_titles:
             continue
+        setattr(x, "_match_reason_text", match_reason)
         picked.append(x)
         seen_ids.add(pid)
         seen_titles.add(titlek)
@@ -796,8 +903,16 @@ def render_more_like_this_h5(
         title = html.escape(str(getattr(x, "title", "") or ""))
         shop_name = html.escape(str(getattr(x, "shop_name", "") or ""))
         shop_html = f'<div class="meta">店铺：{shop_name}</div>' if shop_name else ""
+        value_text = html.escape(_news_value_line(x))
         price_text = html.escape(_format_price_line(x))
-        reason_text = html.escape(_commercial_reason(x))
+        reason_text = html.escape(_recommend_reason_short(x))
+        match_prefix = html.escape(_copy_text("section_copy", "more_like_this_match_prefix", "匹配："))
+        match_reason = html.escape(str(getattr(x, "_match_reason_text", "") or _copy_text("match_reason_labels", "fallback", "相似用途")))
+        tags = _recommend_reason_tags(x)
+        badges_html = ""
+        if tags:
+            badges_html = '<div class="badges">' + "".join(f'<span class="badge">{html.escape(str(tag))}</span>' for tag in tags) + '</div>'
+
         buy_link = _promotion_url(
             x,
             wechat_openid=wechat_openid or "more_like_this_openid",
@@ -808,9 +923,12 @@ def render_more_like_this_h5(
             f"""
             <div class="card">
               <div class="title">{idx}. {title}</div>
+              <div class="match">{match_prefix}{match_reason}</div>
               {shop_html}
-              <div class="price">💰 {price_text}</div>
-              <div class="reason">✨ 推荐理由：{reason_text}</div>
+              <div class="price">{value_text}</div>
+              <div class="meta">{html.escape(_copy_text("section_copy", "h5_price_prefix", "到手参考："))}{price_text}</div>
+              {badges_html}
+              <div class="reason">{reason_text}</div>
               <div class="actions">
                 <a class="btn btn-primary" href="{buy_link}">{html.escape(LABEL_BUY)}</a>
               </div>
@@ -818,19 +936,21 @@ def render_more_like_this_h5(
             """.strip()
         )
 
-    intro = """
+    intro = f"""
     <div class="card">
-      <div class="title">更多同类产品</div>
-      <div class="meta">按同类目 / 同品牌 / 同用途相似度补充 1-3 个更接近的商品；如果不够接近，就不强行塞不相关商品。</div>
+      <div class="title">{html.escape(_copy_text("section_copy", "more_like_this_title", "更多同类产品"))}</div>
+      <div class="meta">{html.escape(_copy_text("section_copy", "more_like_this_intro", "优先按同品牌 / 同用途 / 同类目补充 1-3 个更接近的商品；不够接近就不乱塞。"))}</div>
     </div>
     """.strip()
 
     if rows:
         body = intro + "\n" + "\n".join(cards)
     else:
-        body = intro + "\n" + '<div class="card"><div class="title">当前商品池里还没有足够接近的同类商品。</div><div class="meta">宁可少推荐，也不乱塞不相关商品。</div></div>'
+        empty_title = html.escape(_copy_text("section_copy", "more_like_this_empty_title", "当前商品池里还没有足够接近的同类商品。"))
+        empty_desc = html.escape(_copy_text("section_copy", "more_like_this_empty_desc", "宁可少推荐，也不乱塞不相关商品。"))
+        body = intro + "\n" + f'<div class="card"><div class="title">{empty_title}</div><div class="meta">{empty_desc}</div></div>'
 
-    return _html_shell("更多同类产品", body)
+    return _html_shell(_copy_text("section_copy", "more_like_this_title", "更多同类产品"), body)
 
 # === today recommend news article builder start ===
 def _product_pic_url(product: Product) -> str:

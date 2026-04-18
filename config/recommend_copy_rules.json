@@ -1,0 +1,32 @@
+{
+  "h5_reason_templates": {
+    "high_save_hot": "价差已经拉开，销量也稳，适合直接看实时到手价。",
+    "high_save": "当前有明显价差，先看实时页确认到手门槛更划算。",
+    "hot": "这类商品销量更稳，适合少比价、先看实时页。",
+    "flagship": "店铺确定性更高，适合想省心下单时优先看一眼。",
+    "default": "信息已经比较完整，先看实时页再决定是否下单。"
+  },
+  "reason_tag_labels": {
+    "save": "价差明显",
+    "price": "到手可看",
+    "hot": "销量稳定",
+    "warm": "热销中",
+    "flagship": "店铺省心"
+  },
+  "match_reason_labels": {
+    "same_shop": "同店铺",
+    "same_brand": "同品牌",
+    "same_category": "同类目",
+    "same_use": "同用途",
+    "fallback": "相似用途"
+  },
+  "section_copy": {
+    "h5_price_prefix": "到手参考：",
+    "h5_reason_title": "为什么值得看",
+    "more_like_this_title": "更多同类产品",
+    "more_like_this_intro": "优先按同品牌 / 同用途 / 同类目补充 1-3 个更接近的商品；不够接近就不乱塞。",
+    "more_like_this_empty_title": "当前商品池里还没有足够接近的同类商品。",
+    "more_like_this_empty_desc": "宁可少推荐，也不乱塞不相关商品。",
+    "more_like_this_match_prefix": "匹配："
+  }
+}
