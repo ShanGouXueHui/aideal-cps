@@ -10,7 +10,10 @@ from typing import Any
 from sqlalchemy.orm import Session
 
 from app.models.product import Product
-from app.services.free_llm.semantic_review_service import review_proactive_categories_with_free_llm
+from app.services.free_llm.semantic_review_service import (
+    review_proactive_categories_with_free_llm,
+    review_proactive_products_with_free_llm,
+)
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -234,6 +237,14 @@ def refresh_proactive_recommend_whitelist(db: Session) -> dict[str, Any]:
     )
     include_categories = semantic_review.get("include_category_keywords") or derived_categories[:max_categories]
 
+    product_review = review_proactive_products_with_free_llm(top_rows=top_rows)
+    blocked_product_ids = []
+    for x in product_review.get("blocked_product_ids", []) or []:
+        try:
+            blocked_product_ids.append(int(x))
+        except Exception:
+            pass
+
     payload = {
         "status": "success",
         "generated_at": datetime.now(timezone.utc).isoformat(),
@@ -246,6 +257,8 @@ def refresh_proactive_recommend_whitelist(db: Session) -> dict[str, Any]:
         "category_counter_top": category_counter.most_common(60),
         "rejected": dict(rejected),
         "semantic_review": semantic_review,
+        "product_review": product_review,
+        "blocked_product_ids": blocked_product_ids,
         "top_rows": top_rows,
     }
 

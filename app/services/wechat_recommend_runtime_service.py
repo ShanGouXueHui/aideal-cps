@@ -44,6 +44,9 @@ def _proactive_recommend_cfg() -> dict[str, Any]:
     if isinstance(categories, list) and categories:
         merged = dict(cfg)
         merged["include_category_keywords"] = [str(x).strip() for x in categories if str(x).strip()]
+        blocked_ids = dynamic.get("blocked_product_ids") or []
+        if isinstance(blocked_ids, list):
+            merged["blocked_product_ids"] = [int(x) for x in blocked_ids if str(x).strip().isdigit()]
         merged["dynamic_whitelist_meta"] = {
             "path": str(dynamic_path),
             "generated_at": dynamic.get("generated_at"),
@@ -93,6 +96,13 @@ def _is_commercial_proactive_candidate(product: Product) -> bool:
     cfg = _proactive_recommend_cfg()
     if not cfg.get("enabled", True):
         return True
+
+    blocked_product_ids = cfg.get("blocked_product_ids") or []
+    try:
+        if int(getattr(product, "id", 0) or 0) in {int(x) for x in blocked_product_ids}:
+            return False
+    except Exception:
+        pass
 
     title_text = _norm_text(getattr(product, "title", None))
     category_text = _norm_text(getattr(product, "category_name", None))

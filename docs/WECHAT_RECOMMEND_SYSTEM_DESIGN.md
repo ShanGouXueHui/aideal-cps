@@ -385,3 +385,50 @@
 - 生产调度改为每天一次：`OnCalendar=*-*-* 04:20:00`，并设置 `RandomizedDelaySec=20m`。
 - 用户请求链路不实时逐个探活，只读取 `run/free_llm_active_routing.json` 的已验证路由；失败时按路由自动切换下一个模型。
 - 完整探活仅用于低频刷新模型池、淘汰失效模型、更新综合排序。
+
+<!-- START 2026-04-20 免费LLM商品级白名单尾巴治理 -->
+## 2026-04-20 免费LLM商品级白名单尾巴治理
+
+本次收尾目标：解决动态白名单只做“类目级派生 / 类目级审核”，但未对进入主动推荐池的具体商品标题做语义级尾巴治理的问题。
+
+已完成：
+1. `app/services/free_llm/semantic_review_service.py`
+   - 在原有 `review_proactive_categories_with_free_llm` 基础上，增加类目关键词归一能力：
+     - 允许将京东细分类目归一为更短、更干净的中文关键词；
+     - 仍禁止模型凭空新增无关类目；
+     - 归一结果必须能从原始候选类目中找到语义锚点。
+   - 新增 `review_proactive_products_with_free_llm`：
+     - 输入高分候选商品样本；
+     - 通过免费 LLM 输出需要拦截的 `product_id`；
+     - 与规则侧的试用、拉新、低质引流、风险词拦截合并；
+     - LLM 失败时 fallback 到启发式规则，不阻塞夜间刷新。
+
+2. `app/services/proactive_whitelist_refresh_service.py`
+   - 动态白名单生成流程升级为：
+     - 京东销量榜 / 佣金榜采集；
+     - DB 质量门槛过滤；
+     - 类目归一与审核；
+     - 商品级语义审核；
+     - 输出 `run/proactive_recommend_whitelist.json`。
+   - 新增输出字段：
+     - `semantic_review`
+     - `product_review`
+     - `blocked_product_ids`
+
+3. `app/services/wechat_recommend_runtime_service.py`
+   - 主动推荐池 runtime 读取动态白名单中的 `blocked_product_ids`；
+   - 被 LLM / 规则判定为不适合主动推荐的商品，即使类目命中白名单，也不会进入今日推荐 / 找商品入口。
+
+设计原则：
+- 免费 LLM 只做“语义质检 / 归一 / 拦截建议”，不直接绕过硬规则。
+- 硬合规规则仍优先：药品、酒类、农药、防身、本地维修、成人情趣等继续由规则强拦截。
+- 免费 LLM 不可凭空扩类目；只允许在京东榜单和用户请求沉淀出的候选范围内做清洗。
+- 运行时只消费 `run/proactive_recommend_whitelist.json` 的确定性结果，避免用户点击菜单时同步等待 LLM。
+- 夜间 systemd timer 继续负责后台刷新，用户无感。
+
+下一步主线：
+- 回到微信菜单优化：
+  - 今日推荐图文入口；
+  - 找优惠 / 搜商品自然语言统一 intent orchestrator；
+  - 我的会员 / 我的订单 / 帮助说明。
+<!-- END 2026-04-20 免费LLM商品级白名单尾巴治理 -->
