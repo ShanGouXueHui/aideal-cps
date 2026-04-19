@@ -4,7 +4,7 @@
   "health_probe_max_models_per_provider": 3,
   "default_timeout_seconds": 8,
   "catalog_refresh_hours": 24,
-  "health_probe_hours": 24,
+  "health_probe_hours": 0.5,
   "providers": [
     {
       "name": "openrouter",
@@ -170,5 +170,25 @@
         "qwen-max"
       ]
     }
-  ]
+  ],
+  "health_probe_profiles": {
+    "quick": {
+      "max_models_per_provider": 3,
+      "timeout_seconds": 8,
+      "success_target": 6,
+      "total_timeout_seconds": 90
+    },
+    "background": {
+      "max_models_per_provider": 6,
+      "timeout_seconds": 10,
+      "success_target": 12,
+      "total_timeout_seconds": 420
+    },
+    "full": {
+      "max_models_per_provider": 40,
+      "timeout_seconds": 15,
+      "success_target": null,
+      "total_timeout_seconds": 1800
+    }
+  }
 }

@@ -295,3 +295,36 @@ AIdeal CPS（智省优选）是基于微信服务号的 AI 导购 + 京东联盟
 - 调用日志在 `logs/free_llm_usage.log`，不提交。
 - 业务服务不得直接调用单一 provider，必须通过 `free_llm.router_service`。
 <!-- END 2026-04-20 免费LLM编排与动态白名单语义复核 -->
+
+<!-- START 2026-04-20 免费大模型池完整探活与后台健康探测 -->
+## 2026-04-20 免费大模型池完整探活与后台健康探测
+
+### 设计结论
+- 免费 LLM 池不放在 FastAPI 请求进程里做常驻探活，避免慢模型、海外网络抖动拖垮微信被动回复。
+- 采用独立 systemd timer 后台任务持续刷新：
+  - `ops/systemd/aideal-free-llm-health-probe.service`
+  - `ops/systemd/aideal-free-llm-health-probe.timer`
+  - `ops/systemd/run_free_llm_health_probe.sh`
+  - 巡检脚本：`ops/check_free_llm_health.sh`
+- 探活结果落盘：
+  - `run/free_llm_health_snapshot.json`
+  - `run/free_llm_active_routing.json`
+  - `run/free_llm_health_probe_status.json`
+- 路由策略：
+  - quick：请求前快速可用性校验/本地调试。
+  - background：生产后台每 30 分钟持续探活，刷新模型状态、时延、JSON 输出能力和综合排序。
+  - full：人工或低频完整探活，覆盖更多模型，适合重新评估 provider 大池。
+
+### 当前约束
+- 免费 provider 包括 OpenRouter、NVIDIA、HuggingFace、Gemini、智谱、百炼、腾讯混元。
+- `qwen_premium` 仅作为 paid fallback，后续用于高价值用户兜底；普通免费链路不优先使用。
+- `.freeLLM` 和 `.env` 只在服务器本地保存，不进入 GitHub。
+- 运行期业务逻辑只读取 `run/free_llm_active_routing.json`，不要在用户请求链路里实时逐个探活。
+
+### 后续接入点
+- 商品自然语言意图解析：优先使用 `product_intent_parse` 路由。
+- 商品重排：优先使用 `product_rerank` 路由。
+- 动态白名单语义审核：优先使用 `catalog_whitelist_review` 路由。
+- 推荐文案生成：优先使用 `copy_generate` 路由。
+- 兜底闲聊/解释：使用 `fallback_chat` 路由。
+<!-- END 2026-04-20 免费大模型池完整探活与后台健康探测 -->

@@ -1,0 +1,9 @@
+[Unit]
+Description=AIdeal CPS Free LLM Health Probe Job
+After=network.target
+
+[Service]
+Type=oneshot
+User=deploy
+WorkingDirectory=/home/deploy/projects/aideal-cps
+ExecStart=/home/deploy/projects/aideal-cps/ops/systemd/run_free_llm_health_probe.sh
