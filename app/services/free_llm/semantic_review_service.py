@@ -11,6 +11,81 @@ RISK_WORDS = [
     "防狼", "电击", "喷雾", "辣椒水", "维修", "上门", "本地服务",
 ]
 
+CATEGORY_NORMALIZE_RULES: list[tuple[str, list[str]]] = [
+    ("其他大米", ["大米"]),
+    ("长粒香米", ["大米"]),
+    ("稻花香米", ["大米"]),
+    ("菜籽油", ["食用油"]),
+    ("花生油", ["食用油"]),
+    ("葵花籽油", ["食用油"]),
+    ("玉米油", ["食用油"]),
+    ("狗干粮", ["狗粮"]),
+    ("猫干粮", ["猫粮"]),
+    ("猫湿粮", ["猫粮"]),
+    ("宠物尿垫/纸尿裤", ["宠物尿垫"]),
+    ("厨房纸巾", ["厨房纸"]),
+    ("洗脸巾/棉柔巾/压缩毛巾", ["洗脸巾", "棉柔巾"]),
+    ("棉柔巾/绵柔巾", ["棉柔巾"]),
+    ("牙线/牙线棒/牙签", ["牙线"]),
+    ("抹布/百洁布", ["抹布", "百洁布"]),
+    ("手套/鞋套/围裙", ["一次性手套"]),
+    ("陶瓷/马克杯", ["水杯"]),
+    ("玻璃杯", ["水杯"]),
+    ("保温杯", ["水杯"]),
+    ("水壶/水杯", ["水杯"]),
+    ("保鲜膜套", ["保鲜膜"]),
+    ("婴童乳霜纸", ["宝宝湿巾"]),
+    ("湿巾", ["宝宝湿巾"]),
+    ("婴童口腔护理", ["儿童牙膏", "儿童牙刷"]),
+    ("女性护理套装", ["卫生巾"]),
+    ("洗碗机清洁剂", ["洗碗块"]),
+    ("奶瓶清洗", ["奶瓶清洗剂"]),
+    ("洗发沐浴", ["洗发水", "沐浴露"]),
+]
+
+
+def _heuristic_normalized_categories(categories: list[str]) -> list[str]:
+    out: list[str] = []
+    seen: set[str] = set()
+
+    def add(val: str) -> None:
+        val = str(val or "").strip().strip(" /｜|，,、")
+        if not val:
+            return
+        if len(val) > 14:
+            return
+        if _has_risk(val):
+            return
+        if val not in seen:
+            seen.add(val)
+            out.append(val)
+
+    for raw in categories:
+        cat = str(raw or "").strip()
+        if not cat:
+            continue
+
+        matched = False
+        for pattern, replacements in CATEGORY_NORMALIZE_RULES:
+            if pattern in cat:
+                for item in replacements:
+                    add(item)
+                matched = True
+
+        if matched:
+            continue
+
+        if "/" in cat or "／" in cat:
+            parts = cat.replace("／", "/").split("/")
+            for part in parts:
+                add(part)
+            continue
+
+        cat = cat.replace("其他", "").replace("类目", "").strip()
+        add(cat)
+
+    return out
+
 LOW_QUALITY_WORDS = [
     "试用", "试用装", "体验", "体验装", "拉新", "拉新装", "新人到手0.01",
     "尝鲜", "尝鲜装", "旅行装", "便携装", "随机发", "小样",
@@ -130,7 +205,8 @@ def review_proactive_categories_with_free_llm(
         return {
             "status": "fallback_heuristic",
             "reason": llm_result.get("error", "free_llm_unavailable"),
-            "include_category_keywords": base_categories,
+            "include_category_keywords": _heuristic_normalized_categories(base_categories),
+            "normalized_include_keywords": _heuristic_normalized_categories(base_categories),
             "llm_errors": llm_result.get("errors", []),
         }
 
@@ -139,7 +215,8 @@ def review_proactive_categories_with_free_llm(
         return {
             "status": "fallback_heuristic",
             "reason": "llm_json_not_object",
-            "include_category_keywords": base_categories,
+            "include_category_keywords": _heuristic_normalized_categories(base_categories),
+            "normalized_include_keywords": _heuristic_normalized_categories(base_categories),
         }
 
     normalized = payload.get("normalized_include_keywords")
@@ -160,10 +237,13 @@ def review_proactive_categories_with_free_llm(
             continue
         final_categories.append(cat)
 
+    heuristic_categories = _heuristic_normalized_categories(base_categories)
     if len(normalized_categories) >= 8:
         final_categories = normalized_categories
     elif len(final_categories) < 8:
-        final_categories = base_categories
+        final_categories = heuristic_categories or base_categories
+    elif heuristic_categories:
+        final_categories = heuristic_categories
 
     return {
         "status": "success",
@@ -288,4 +368,3 @@ def review_proactive_products_with_free_llm(
         "notes": payload.get("notes", []),
         "latency_ms": llm_result.get("latency_ms"),
     }
-

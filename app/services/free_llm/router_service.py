@@ -114,6 +114,19 @@ def complete_free_llm(
 
     errors: list[dict[str, Any]] = []
     routes = _routes_for_task(task, allow_premium=premium_allowed)
+
+    # JSON 任务优先使用已探活证明 json_ok 的模型，避免先打到“能回复但不稳定 JSON”的模型。
+    if require_json:
+        def _route_sort_key(route: dict[str, Any]) -> tuple[int, float]:
+            json_rank = 0 if route.get("json_ok") else 1
+            try:
+                score = float(route.get("score") or 0)
+            except Exception:
+                score = 0.0
+            return (json_rank, -score)
+
+        routes = sorted(routes, key=_route_sort_key)
+
     for route in routes:
         provider_name = str(route.get("provider") or "")
         model = str(route.get("model") or "")
