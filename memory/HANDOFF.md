@@ -342,32 +342,27 @@
 <!-- START 2026-04-20 免费大模型池完整探活与后台健康探测 -->
 ## 2026-04-20 免费大模型池完整探活与后台健康探测
 
-### 设计结论
-- 免费 LLM 池不放在 FastAPI 请求进程里做常驻探活，避免慢模型、海外网络抖动拖垮微信被动回复。
-- 采用独立 systemd timer 后台任务持续刷新：
+### 当前结论
+- 免费 LLM 完整探活已跑通：`mode=full`，`probe_count=86`，`success_count=42`。
+- 可用 provider 包括 OpenRouter、NVIDIA、百炼、智谱、腾讯混元，以及 `qwen_premium` 兜底。
+- Gemini 与 HuggingFace 当前在杭州生产环境探活失败或不可达，不作为当前主路由。
+- `run/free_llm_active_routing.json` 已生成，业务侧后续应读取该文件做模型选择，不要在用户请求链路中逐个实时探活。
+
+### 后台机制
+- 新增后台探活 timer：
   - `ops/systemd/aideal-free-llm-health-probe.service`
   - `ops/systemd/aideal-free-llm-health-probe.timer`
   - `ops/systemd/run_free_llm_health_probe.sh`
-  - 巡检脚本：`ops/check_free_llm_health.sh`
-- 探活结果落盘：
-  - `run/free_llm_health_snapshot.json`
-  - `run/free_llm_active_routing.json`
-  - `run/free_llm_health_probe_status.json`
-- 路由策略：
-  - quick：请求前快速可用性校验/本地调试。
-  - background：生产后台每 30 分钟持续探活，刷新模型状态、时延、JSON 输出能力和综合排序。
-  - full：人工或低频完整探活，覆盖更多模型，适合重新评估 provider 大池。
+  - `ops/check_free_llm_health.sh`
+- 机制：后台定时刷新免费模型目录、探测模型可用性、时延、JSON 输出能力，并生成综合排序。
+- 探活模式：
+  - `quick`：快速验证。
+  - `background`：生产后台持续探活。
+  - `full`：低频完整探活，用于重新评估模型池。
 
-### 当前约束
-- 免费 provider 包括 OpenRouter、NVIDIA、HuggingFace、Gemini、智谱、百炼、腾讯混元。
-- `qwen_premium` 仅作为 paid fallback，后续用于高价值用户兜底；普通免费链路不优先使用。
-- `.freeLLM` 和 `.env` 只在服务器本地保存，不进入 GitHub。
-- 运行期业务逻辑只读取 `run/free_llm_active_routing.json`，不要在用户请求链路里实时逐个探活。
-
-### 后续接入点
-- 商品自然语言意图解析：优先使用 `product_intent_parse` 路由。
-- 商品重排：优先使用 `product_rerank` 路由。
-- 动态白名单语义审核：优先使用 `catalog_whitelist_review` 路由。
-- 推荐文案生成：优先使用 `copy_generate` 路由。
-- 兜底闲聊/解释：使用 `fallback_chat` 路由。
+### 使用原则
+- 微信用户对话链路优先读取 `active_routing` 的已验证模型，失败后自动切下一个模型，用户无感。
+- 高价值用户或高价值订单场景，允许使用 `qwen_premium` 作为付费兜底。
+- `.freeLLM`、`.env`、运行日志、运行态 JSON 均不得进入 GitHub。
 <!-- END 2026-04-20 免费大模型池完整探活与后台健康探测 -->
+
