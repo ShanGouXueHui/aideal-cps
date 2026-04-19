@@ -87,6 +87,24 @@ def _is_commercial_proactive_candidate(product: Product) -> bool:
     if include_category_keywords and not _contains_any_keyword(category_text, include_category_keywords):
         return False
 
+    min_effective_price = _to_float(cfg.get("min_effective_price", cfg.get("min_coupon_price", 0)))
+    max_effective_price = _to_float(cfg.get("max_effective_price", 0))
+    min_estimated_commission = _to_float(cfg.get("min_estimated_commission", 0))
+    min_sales_volume = _to_int(cfg.get("min_sales_volume", 0))
+
+    effective_price = _effective_price(product)
+    estimated_commission = _to_float(getattr(product, "estimated_commission", None))
+    sales_volume = _to_int(getattr(product, "sales_volume", None))
+
+    if min_effective_price > 0 and (effective_price <= 0 or effective_price < min_effective_price):
+        return False
+    if max_effective_price > 0 and effective_price > max_effective_price:
+        return False
+    if min_estimated_commission > 0 and estimated_commission < min_estimated_commission:
+        return False
+    if min_sales_volume > 0 and sales_volume < min_sales_volume:
+        return False
+
     return True
 
 

@@ -1,7 +1,7 @@
 {
   "enabled": true,
   "fallback_to_base_pool": false,
-  "fallback_min_candidates": 12,
+  "fallback_min_candidates": 0,
   "include_category_keywords": [
     "牙膏",
     "普通洗衣液",
@@ -51,9 +51,34 @@
     "农药",
     "药",
     "办号",
-    "套餐"
+    "套餐",
+    "新人到手0.01",
+    "新人",
+    "拉新",
+    "拉新装",
+    "试用",
+    "试用装",
+    "体验",
+    "体验装",
+    "尝鲜",
+    "尝鲜装",
+    "旅行装",
+    "便携装",
+    "随身装",
+    "小样",
+    "随机发",
+    "款式随机",
+    "单包",
+    "单支",
+    "单片",
+    "1包",
+    "1支",
+    "1片"
   ],
   "exclude_shop_keywords": [
     "服务旗舰店"
-  ]
+  ],
+  "min_effective_price": 6.0,
+  "min_estimated_commission": 0.08,
+  "min_sales_volume": 50
 }
