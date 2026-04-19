@@ -129,3 +129,9 @@
 - 临时域名 `aidealfy.kindafeelfy.cn` 暂保留 24-72 小时作为回滚通道，确认正式域名稳定后再删除解析和 Nginx block
 - 微信消息加密方式当前继续保持“明文模式”
 - 不要直接在微信后台切“安全模式”，当前代码尚未实现 `msg_signature` 校验、AES 解密、加密回复；后续需单独做 `feat(wechat): support encrypted callback mode`
+
+## 2026-04-19 配置治理规则补充
+- 生产公开域名统一使用 `https://aidealfy.cn`
+- `PUBLIC_BASE_URL` / `public_base_url` 必须来自 `.env` 或配置文件，不允许业务代码散落旧域名
+- 关键词池、主动推荐池、合规词、推荐文案、H5 文案、阈值类参数优先放入 `config/*.json` 或数据库
+- 代码中不得硬编码临时域名、业务阈值和可运营文案；如必须有默认值，只能作为无状态兜底，并同步写入 HANDOFF

@@ -51,7 +51,7 @@
     "find_hint": "你可以直接回复想买的商品，比如：卫生纸、洗衣液、宝宝湿巾、京东自营。"
   },
   "urls": {
-    "public_base_url": "https://aidealfy.kindafeelfy.cn",
+    "public_base_url": "https://aidealfy.cn",
     "promotion_redirect_path": "/api/promotion/redirect",
     "recommend_h5_path_template": "/api/h5/recommend/{product_id}"
   },

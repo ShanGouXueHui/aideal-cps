@@ -139,7 +139,7 @@ def _public_base_url() -> str:
             return str(PUBLIC_BASE_URL).rstrip("/")
     except Exception:
         pass
-    return "https://aidealfy.kindafeelfy.cn"
+    return "https://aidealfy.cn"
 
 
 def _openid_key(openid: str) -> str:

@@ -11,7 +11,7 @@ BASE_DIR = Path(__file__).resolve().parents[2]
 RULES_PATH = BASE_DIR / "config" / "wechat_recommend_rules.json"
 RUNTIME_SERVICE_PATH = BASE_DIR / "app" / "services" / "wechat_recommend_runtime_service.py"
 
-DEFAULT_PUBLIC_BASE_URL = "https://aidealfy.kindafeelfy.cn"
+DEFAULT_PUBLIC_BASE_URL = "https://aidealfy.cn"
 
 DEFAULT_RULES = {
     "urls": {
