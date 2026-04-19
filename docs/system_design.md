@@ -78,3 +78,17 @@ AIdeal CPS（智省优选）是基于微信服务号的 AI 导购 + 京东联盟
 - 当前设计原则：
   - 合规过滤解决“能不能展示”
   - proactive pool 过滤解决“适不适合主动推荐”
+
+## 2026-04-19 微信正式回调域名切换完成
+- CPS 正式域名 `aidealfy.cn` ICP 备案已完成，DNS 已解析到生产机 `8.136.28.6`
+- 微信服务号服务器配置已从临时域名切换为：
+  - `https://aidealfy.cn/wechat/callback`
+- Nginx 已修复正式域名 `/wechat/callback` 反代路径：
+  - `https://aidealfy.cn/wechat/callback` -> `http://127.0.0.1:8000/wechat/callback`
+- Let's Encrypt 证书已签发：
+  - `aidealfy.cn`
+  - `www.aidealfy.cn`
+- `certbot.timer` 已启用，`certbot renew --dry-run` 通过，证书自动续期闭环正常
+- 临时域名 `aidealfy.kindafeelfy.cn` 暂保留 24-72 小时作为回滚通道，确认正式域名稳定后再删除解析和 Nginx block
+- 微信消息加密方式当前继续保持“明文模式”
+- 不要直接在微信后台切“安全模式”，当前代码尚未实现 `msg_signature` 校验、AES 解密、加密回复；后续需单独做 `feat(wechat): support encrypted callback mode`
