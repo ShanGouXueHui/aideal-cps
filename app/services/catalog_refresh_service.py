@@ -13,10 +13,15 @@ from app.services.catalog_refresh_config_service import load_catalog_refresh_rul
 from app.services.jd_live_search_service import _build_short_link, _normalize_live_item, _pick_material_url
 from app.services.jd_product_sync_service import sync_jd_products, upsert_product
 from app.services.jd_union_client import JDUnionClient, extract_goods_query_items
+from app.services.proactive_whitelist_refresh_service import refresh_proactive_recommend_whitelist
 
 
-def _product_payload_from_live_row(row: dict[str, Any], *, keyword: str) -> dict[str, Any]:
+def _product_payload_from_live_row(row: dict[str, Any], *, keyword: str, source_profile: str = "") -> dict[str, Any]:
     allowed_keys = set(Product.__table__.columns.keys())
+
+    ai_tags = f"关键词池:{keyword}"
+    if source_profile:
+        ai_tags = f"{ai_tags}|榜单:{source_profile}"
 
     payload = {
         "jd_sku_id": row.get("jd_sku_id"),
@@ -36,7 +41,7 @@ def _product_payload_from_live_row(row: dict[str, Any], *, keyword: str) -> dict
         "sales_volume": row.get("sales_volume"),
         "coupon_info": row.get("coupon_info"),
         "ai_reason": row.get("reason"),
-        "ai_tags": f"关键词池:{keyword}",
+        "ai_tags": ai_tags,
         "elite_id": row.get("elite_id"),
         "elite_name": row.get("elite_name") or "关键词池",
         "owner": row.get("owner"),
@@ -52,6 +57,62 @@ def _product_payload_from_live_row(row: dict[str, Any], *, keyword: str) -> dict
     }
 
     return {k: v for k, v in payload.items() if k in allowed_keys}
+
+
+def _catalog_sort_profiles(rules: dict[str, Any], *, default_limit: int) -> list[dict[str, Any]]:
+    raw_profiles = rules.get("keyword_sort_profiles")
+    if not isinstance(raw_profiles, list) or not raw_profiles:
+        return [
+            {
+                "name": "default",
+                "sort_name": rules.get("goods_query_sort_name"),
+                "sort": rules.get("goods_query_sort", "desc"),
+                "limit": default_limit,
+            }
+        ]
+
+    profiles: list[dict[str, Any]] = []
+    seen: set[tuple[str, str, str]] = set()
+
+    for item in raw_profiles:
+        if not isinstance(item, dict):
+            continue
+
+        sort_name = item.get("sort_name") or item.get("sortName")
+        sort = item.get("sort") or rules.get("goods_query_sort") or "desc"
+        extra_goods_req = item.get("extra_goods_req") if isinstance(item.get("extra_goods_req"), dict) else None
+
+        try:
+            limit = int(item.get("limit") or item.get("page_size") or default_limit)
+        except Exception:
+            limit = default_limit
+
+        limit = max(1, min(limit, 50))
+        name = str(item.get("name") or sort_name or f"profile_{len(profiles) + 1}").strip()
+
+        key = (str(sort_name or ""), str(sort or ""), str(extra_goods_req or ""))
+        if key in seen:
+            continue
+        seen.add(key)
+
+        profiles.append(
+            {
+                "name": name,
+                "sort_name": sort_name,
+                "sort": sort,
+                "limit": limit,
+                "extra_goods_req": extra_goods_req,
+            }
+        )
+
+    return profiles or [
+        {
+            "name": "default",
+            "sort_name": rules.get("goods_query_sort_name"),
+            "sort": rules.get("goods_query_sort", "desc"),
+            "limit": default_limit,
+        }
+    ]
 
 
 def refresh_elite_catalogs(
@@ -102,55 +163,101 @@ def refresh_keyword_catalog(
     rules = load_catalog_refresh_rules()
     limit = int(limit or rules.get("keyword_sync_limit", 12))
     client = jd_client or JDUnionClient()
-
-    response = client.goods_query(
-        keyword=keyword,
-        page_index=1,
-        page_size=limit,
-        sort_name=rules.get("goods_query_sort_name"),
-        sort=rules.get("goods_query_sort"),
-    )
-    items = extract_goods_query_items(response)
+    profiles = _catalog_sort_profiles(rules, default_limit=limit)
 
     inserted = 0
     updated = 0
     rows: list[dict[str, Any]] = []
     seen_jd_sku_ids: set[str] = set()
+    profile_results: list[dict[str, Any]] = []
 
-    for item in items[:limit]:
-        material_url = _pick_material_url(item)
-        short_url = _build_short_link(client, material_url)
-        live_row = _normalize_live_item(item, short_url=short_url)
-        payload = _product_payload_from_live_row(live_row, keyword=keyword)
+    for profile in profiles:
+        profile_name = str(profile.get("name") or "default")
+        profile_limit = int(profile.get("limit") or limit)
+        profile_inserted = 0
+        profile_updated = 0
+        profile_rows = 0
 
-        jd_sku_id = str(payload.get("jd_sku_id") or "").strip()
-        if not jd_sku_id:
+        try:
+            response = client.goods_query(
+                keyword=keyword,
+                page_index=1,
+                page_size=profile_limit,
+                sort_name=profile.get("sort_name"),
+                sort=profile.get("sort"),
+                extra_goods_req=profile.get("extra_goods_req"),
+            )
+            items = extract_goods_query_items(response)
+        except Exception as exc:
+            profile_results.append(
+                {
+                    "profile": profile_name,
+                    "sort_name": profile.get("sort_name"),
+                    "sort": profile.get("sort"),
+                    "limit": profile_limit,
+                    "inserted": 0,
+                    "updated": 0,
+                    "total": 0,
+                    "error": str(exc),
+                }
+            )
             continue
-        if jd_sku_id in seen_jd_sku_ids:
-            continue
-        seen_jd_sku_ids.add(jd_sku_id)
-        payload["jd_sku_id"] = jd_sku_id
 
-        product, action = upsert_product(db, payload)
-        if action == "inserted":
-            inserted += 1
-        else:
-            updated += 1
+        for item in items[:profile_limit]:
+            material_url = _pick_material_url(item)
+            short_url = _build_short_link(client, material_url)
+            live_row = _normalize_live_item(item, short_url=short_url)
+            payload = _product_payload_from_live_row(
+                live_row,
+                keyword=keyword,
+                source_profile=profile_name,
+            )
 
-        rows.append(
+            jd_sku_id = str(payload.get("jd_sku_id") or "").strip()
+            if not jd_sku_id:
+                continue
+            if jd_sku_id in seen_jd_sku_ids:
+                continue
+            seen_jd_sku_ids.add(jd_sku_id)
+            payload["jd_sku_id"] = jd_sku_id
+
+            product, action = upsert_product(db, payload)
+            if action == "inserted":
+                inserted += 1
+                profile_inserted += 1
+            else:
+                updated += 1
+                profile_updated += 1
+
+            profile_rows += 1
+            rows.append(
+                {
+                    "jd_sku_id": product.jd_sku_id,
+                    "title": product.title,
+                    "short_url": product.short_url,
+                    "keyword": keyword,
+                    "source_profile": profile_name,
+                    "compliance_level": getattr(product, "compliance_level", None),
+                    "action": action,
+                }
+            )
+
+        profile_results.append(
             {
-                "jd_sku_id": product.jd_sku_id,
-                "title": product.title,
-                "short_url": product.short_url,
-                "keyword": keyword,
-                "compliance_level": getattr(product, "compliance_level", None),
-                "action": action,
+                "profile": profile_name,
+                "sort_name": profile.get("sort_name"),
+                "sort": profile.get("sort"),
+                "limit": profile_limit,
+                "inserted": profile_inserted,
+                "updated": profile_updated,
+                "total": profile_rows,
             }
         )
 
     db.commit()
     return {
         "keyword": keyword,
+        "profiles": profile_results,
         "inserted": inserted,
         "updated": updated,
         "total": len(rows),
@@ -277,9 +384,18 @@ def run_nightly_catalog_refresh(db: Session) -> dict[str, Any]:
     inactive_result = inactivate_expired_products(db)
     purge_result = purge_stale_products(db)
 
+    try:
+        whitelist_result = refresh_proactive_recommend_whitelist(db)
+    except Exception as exc:
+        whitelist_result = {
+            "status": "failed",
+            "error": str(exc),
+        }
+
     return {
         "elite_refresh": elite_result,
         "keyword_refresh": keyword_result,
         "inactive_cleanup": inactive_result,
         "purge_cleanup": purge_result,
+        "proactive_whitelist_refresh": whitelist_result,
     }

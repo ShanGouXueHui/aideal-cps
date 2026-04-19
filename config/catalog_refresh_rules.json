@@ -51,5 +51,19 @@
   "goods_query_sort_name": "inOrderCount30Days",
   "goods_query_sort": "desc",
   "expire_hours": 72,
-  "purge_hours": 240
+  "purge_hours": 240,
+  "keyword_sort_profiles": [
+    {
+      "name": "order_count_30d",
+      "sort_name": "inOrderCount30Days",
+      "sort": "desc",
+      "limit": 10
+    },
+    {
+      "name": "commission_amount",
+      "sort_name": "commission",
+      "sort": "desc",
+      "limit": 8
+    }
+  ]
 }

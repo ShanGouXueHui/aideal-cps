@@ -16,17 +16,43 @@ from app.models.wechat_recommend_exposure import WechatRecommendExposure
 from app.services.product_compliance_service import apply_product_visibility_filter
 
 
-CONFIG_DIR = Path(__file__).resolve().parents[2] / "config"
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+CONFIG_DIR = PROJECT_ROOT / "config"
+RUN_DIR = PROJECT_ROOT / "run"
 
 
-@lru_cache(maxsize=1)
-def _proactive_recommend_cfg() -> dict[str, Any]:
+def _load_json_file(path: Path) -> dict[str, Any]:
     try:
-        path = CONFIG_DIR / "proactive_recommend_rules.json"
         data = json.loads(path.read_text(encoding="utf-8"))
         return data if isinstance(data, dict) else {}
     except Exception:
         return {}
+
+
+def _proactive_recommend_cfg() -> dict[str, Any]:
+    cfg = _load_json_file(CONFIG_DIR / "proactive_recommend_rules.json")
+    if not cfg.get("dynamic_whitelist_enabled", True):
+        return cfg
+
+    path_value = str(cfg.get("dynamic_include_category_keywords_path") or "run/proactive_recommend_whitelist.json").strip()
+    dynamic_path = Path(path_value)
+    if not dynamic_path.is_absolute():
+        dynamic_path = PROJECT_ROOT / dynamic_path
+
+    dynamic = _load_json_file(dynamic_path)
+    categories = dynamic.get("include_category_keywords") or dynamic.get("derived_categories")
+    if isinstance(categories, list) and categories:
+        merged = dict(cfg)
+        merged["include_category_keywords"] = [str(x).strip() for x in categories if str(x).strip()]
+        merged["dynamic_whitelist_meta"] = {
+            "path": str(dynamic_path),
+            "generated_at": dynamic.get("generated_at"),
+            "candidate_count": dynamic.get("candidate_count"),
+            "derived_category_count": dynamic.get("derived_category_count"),
+        }
+        return merged
+
+    return cfg
 
 
 @lru_cache(maxsize=1)
