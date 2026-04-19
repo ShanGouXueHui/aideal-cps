@@ -65,5 +65,6 @@
       "sort": "desc",
       "limit": 8
     }
-  ]
+  ],
+  "free_llm_refresh_enabled": true
 }

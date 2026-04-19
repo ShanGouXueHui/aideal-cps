@@ -1,0 +1,174 @@
+{
+  "enabled": true,
+  "max_models_per_provider": 40,
+  "health_probe_max_models_per_provider": 3,
+  "default_timeout_seconds": 8,
+  "catalog_refresh_hours": 24,
+  "health_probe_hours": 24,
+  "providers": [
+    {
+      "name": "openrouter",
+      "enabled": true,
+      "kind": "openai_compatible",
+      "base_url": "https://openrouter.ai/api/v1",
+      "models_path": "/models",
+      "env_key": "OPENROUTER_API_KEY",
+      "env_aliases": [
+        "OPENROUTER_KEY"
+      ],
+      "cost_tier": "free",
+      "free_only": true,
+      "discover_models": true,
+      "model_id_patterns": [
+        ":free",
+        "free"
+      ],
+      "seed_models": [
+        "qwen/qwen3-30b-a3b:free",
+        "qwen/qwen3-14b:free",
+        "deepseek/deepseek-chat-v3.1:free",
+        "meta-llama/llama-3.1-8b-instruct:free"
+      ],
+      "base_url_env": "FREE_POOL_OPENROUTER_BASE_URL"
+    },
+    {
+      "name": "nvidia",
+      "enabled": true,
+      "kind": "openai_compatible",
+      "base_url": "https://integrate.api.nvidia.com/v1",
+      "models_path": "/models",
+      "env_key": "NVIDIA_API_KEY",
+      "env_aliases": [
+        "NVIDIA_NIM_API_KEY",
+        "NVIDIA_NGC_API_KEY",
+        "NVIDIA_BUILD_API_KEY"
+      ],
+      "cost_tier": "free_or_trial",
+      "free_only": false,
+      "discover_models": true,
+      "seed_models": [
+        "meta/llama-3.1-8b-instruct",
+        "mistralai/mistral-7b-instruct-v0.3",
+        "nvidia/llama-3.1-nemotron-nano-8b-v1"
+      ]
+    },
+    {
+      "name": "huggingface",
+      "enabled": true,
+      "kind": "openai_compatible",
+      "base_url": "https://router.huggingface.co/v1",
+      "models_path": "/models",
+      "env_key": "HUGGINGFACE_API_KEY",
+      "env_aliases": [
+        "HF_TOKEN",
+        "HUGGINGFACE_HUB_TOKEN"
+      ],
+      "cost_tier": "free_or_trial",
+      "free_only": false,
+      "discover_models": true,
+      "seed_models": [
+        "Qwen/Qwen3-4B:fastest",
+        "Qwen/Qwen2.5-7B-Instruct:fastest",
+        "meta-llama/Llama-3.1-8B-Instruct:fastest",
+        "deepseek-ai/DeepSeek-R1-Distill-Qwen-32B:fastest"
+      ]
+    },
+    {
+      "name": "gemini",
+      "enabled": true,
+      "kind": "openai_compatible",
+      "base_url": "https://generativelanguage.googleapis.com/v1beta/openai",
+      "models_path": "/models",
+      "env_key": "GEMINI_API_KEY",
+      "env_aliases": [
+        "GOOGLE_API_KEY",
+        "GOOGLE_GEMINI_API_KEY"
+      ],
+      "cost_tier": "free_or_trial",
+      "free_only": false,
+      "discover_models": false,
+      "seed_models": [
+        "gemini-2.5-flash",
+        "gemini-2.0-flash",
+        "gemini-1.5-flash"
+      ]
+    },
+    {
+      "name": "zhipu",
+      "enabled": true,
+      "kind": "openai_compatible",
+      "base_url": "https://open.bigmodel.cn/api/paas/v4",
+      "models_path": "/models",
+      "env_key": "ZHIPU_API_KEY",
+      "env_aliases": [
+        "ZHIPUAI_API_KEY",
+        "BIGMODEL_API_KEY"
+      ],
+      "cost_tier": "free_or_trial",
+      "free_only": false,
+      "discover_models": false,
+      "seed_models": [
+        "glm-4-flash",
+        "glm-4.5-flash"
+      ]
+    },
+    {
+      "name": "bailian",
+      "enabled": true,
+      "kind": "openai_compatible",
+      "base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+      "models_path": "/models",
+      "env_key": "ALI_BAILIAN_API_KEY",
+      "env_aliases": [
+        "DASHSCOPE_API_KEY",
+        "BAILIAN_API_KEY"
+      ],
+      "cost_tier": "free_or_trial",
+      "free_only": false,
+      "discover_models": false,
+      "seed_models": [
+        "qwen-turbo",
+        "qwen-plus"
+      ]
+    },
+    {
+      "name": "tencent_hunyuan",
+      "enabled": true,
+      "kind": "openai_compatible",
+      "base_url": "https://api.hunyuan.cloud.tencent.com/v1",
+      "models_path": "/models",
+      "env_key": "TENCENT_HUNYUAN_API_KEY",
+      "env_aliases": [
+        "HUNYUAN_API_KEY",
+        "TENCENTCLOUD_HUNYUAN_API_KEY"
+      ],
+      "cost_tier": "free_or_trial",
+      "free_only": false,
+      "discover_models": false,
+      "seed_models": [
+        "hunyuan-lite",
+        "hunyuan-standard"
+      ]
+    },
+    {
+      "name": "qwen_premium",
+      "enabled": true,
+      "kind": "openai_compatible",
+      "base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+      "models_path": "/models",
+      "env_key": "QWEN_API_KEY",
+      "env_aliases": [
+        "DASHSCOPE_API_KEY",
+        "ALI_BAILIAN_API_KEY"
+      ],
+      "cost_tier": "paid_fallback",
+      "free_only": false,
+      "discover_models": false,
+      "premium_only": true,
+      "seed_models": [
+        "qwen-plus",
+        "qwen-max"
+      ]
+    }
+  ]
+}

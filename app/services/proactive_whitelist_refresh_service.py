@@ -10,6 +10,7 @@ from typing import Any
 from sqlalchemy.orm import Session
 
 from app.models.product import Product
+from app.services.free_llm.semantic_review_service import review_proactive_categories_with_free_llm
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -226,16 +227,25 @@ def refresh_proactive_recommend_whitelist(db: Session) -> dict[str, Any]:
             "rejected": dict(rejected),
         }
 
+    semantic_review = review_proactive_categories_with_free_llm(
+        categories=derived_categories[:max_categories],
+        top_rows=top_rows,
+        rejected=dict(rejected),
+    )
+    include_categories = semantic_review.get("include_category_keywords") or derived_categories[:max_categories]
+
     payload = {
         "status": "success",
         "generated_at": datetime.now(timezone.utc).isoformat(),
-        "strategy": "auto_dynamic_whitelist_from_jd_ranking_and_user_request_sources",
+        "strategy": "auto_dynamic_whitelist_from_jd_ranking_user_request_and_free_llm_review",
         "source_tag_prefixes": source_prefixes,
-        "include_category_keywords": derived_categories[:max_categories],
+        "include_category_keywords": include_categories,
         "candidate_count": len(candidates),
-        "derived_category_count": len(derived_categories[:max_categories]),
+        "derived_category_count": len(include_categories),
+        "raw_derived_category_count": len(derived_categories[:max_categories]),
         "category_counter_top": category_counter.most_common(60),
         "rejected": dict(rejected),
+        "semantic_review": semantic_review,
         "top_rows": top_rows,
     }
 

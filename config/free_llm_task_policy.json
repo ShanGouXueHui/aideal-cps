@@ -1,0 +1,43 @@
+{
+  "enabled": true,
+  "default_task": "fallback_chat",
+  "tasks": {
+    "catalog_whitelist_review": {
+      "require_json": true,
+      "max_tokens": 900,
+      "temperature": 0.0,
+      "preferred_providers": ["openrouter", "gemini", "zhipu", "bailian", "huggingface", "nvidia"],
+      "premium_fallback_enabled": false
+    },
+    "product_intent_parse": {
+      "require_json": true,
+      "max_tokens": 700,
+      "temperature": 0.0,
+      "preferred_providers": ["gemini", "openrouter", "zhipu", "bailian", "huggingface", "nvidia"],
+      "premium_fallback_enabled": true,
+      "premium_min_gmv_rmb": 1000
+    },
+    "product_rerank": {
+      "require_json": true,
+      "max_tokens": 1100,
+      "temperature": 0.1,
+      "preferred_providers": ["openrouter", "gemini", "zhipu", "bailian", "huggingface", "nvidia"],
+      "premium_fallback_enabled": true,
+      "premium_min_gmv_rmb": 1000
+    },
+    "copy_generate": {
+      "require_json": false,
+      "max_tokens": 500,
+      "temperature": 0.3,
+      "preferred_providers": ["gemini", "openrouter", "zhipu", "bailian", "huggingface", "nvidia"],
+      "premium_fallback_enabled": false
+    },
+    "fallback_chat": {
+      "require_json": false,
+      "max_tokens": 600,
+      "temperature": 0.2,
+      "preferred_providers": ["gemini", "openrouter", "zhipu", "bailian", "huggingface", "nvidia"],
+      "premium_fallback_enabled": false
+    }
+  }
+}

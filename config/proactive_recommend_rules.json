@@ -136,5 +136,11 @@
     "1包",
     "1支",
     "1片"
-  ]
+  ],
+  "free_llm_semantic_review": {
+    "enabled": true,
+    "task": "catalog_whitelist_review",
+    "mode": "filter_only_never_add",
+    "note": "免费LLM只做语义复核和删减；硬合规规则仍是最高优先级。"
+  }
 }

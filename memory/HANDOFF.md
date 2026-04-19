@@ -279,3 +279,62 @@
 - 用户请求沉淀后，只要商品 `ai_tags` 带 `用户请求:`，即可进入自动白名单候选。
 - 每晚 systemd timer 执行商品池刷新时自动刷新动态白名单，运行时无需重启即可读取最新文件。
 <!-- END 2026-04-20 自动动态白名单机制 -->
+
+<!-- START 2026-04-20 免费LLM编排与动态白名单语义复核 -->
+## 2026-04-20 免费LLM编排与动态白名单语义复核
+
+### 目标
+- CPS 不再把 Qwen / OpenRouter / Gemini / NVIDIA / Hugging Face / 智谱 / 百炼 / 混元 等 provider 调用散落在业务代码中。
+- 新增独立免费 LLM 编排层：`app/services/free_llm/`。
+- 商品池动态白名单不再靠人工白名单；先由京东下单榜 / 佣金榜 / 用户请求沉淀生成候选，再由免费 LLM 做语义复核。
+- 免费 LLM 只做“删减/复核”，不能绕过硬合规规则，不能新增未出现在候选中的类目。
+- 后续微信公众号自然语言导购、商品意图识别、商品重排、推荐理由生成，都复用同一 `free_llm` router。
+
+### 新增模块
+- `config/free_llm_provider_registry.json`
+  - provider、endpoint、seed models、discovery 策略、cost_tier。
+  - 不包含任何 secret。
+- `config/free_llm_task_policy.json`
+  - 不同任务的 provider 优先级、是否要求 JSON、是否允许 premium fallback。
+- `app/services/free_llm/model_catalog_refresh_service.py`
+  - 自动发现 provider 模型目录。
+  - 对上百模型做初筛、打分、排序。
+- `app/services/free_llm/health_probe_service.py`
+  - 对候选模型探活。
+  - 生成 `run/free_llm_active_routing.json`。
+- `app/services/free_llm/router_service.py`
+  - 统一调用入口。
+  - 失败自动切换 provider / model。
+  - 用户无感 fallback。
+- `app/services/free_llm/semantic_review_service.py`
+  - 商品池动态白名单语义复核。
+  - 只允许删除风险/低质类目，不允许新增类目。
+- `scripts/sync_free_llm_env.py`
+  - 从 `.freeLLM` 同步 key 到 `.env`，只打印 key 名，不打印 secret。
+- `scripts/refresh_free_llm_catalog.py`
+- `scripts/probe_free_llm_health.py`
+- `scripts/smoke_free_llm_router.py`
+
+### 夜间任务集成
+`run_nightly_catalog_refresh()` 顺序升级为：
+1. 京东精选池刷新
+2. 京东关键词池刷新
+3. 过期 active 商品下线
+4. inactive 陈旧商品清理
+5. 免费 LLM model catalog refresh
+6. 免费 LLM health probe / active routing
+7. 动态主动推荐白名单刷新
+8. 免费 LLM 语义复核白名单
+
+### 高价值用户 premium fallback
+- 普通任务默认免费模型优先。
+- 累计 GMV >= 1000 RMB 的用户，后续自然语言导购可允许 Qwen Plus / Max 兜底。
+- 当前商品白名单复核不启用 premium fallback，避免夜间任务无约束消耗付费模型。
+
+### 配置治理原则
+- secret 只允许在 `.env` / `.freeLLM`。
+- provider、model seed、任务策略必须在 `config/`。
+- 自动探活、模型目录、运行态路由在 `run/`，不提交。
+- 调用日志在 `logs/free_llm_usage.log`，不提交。
+- 业务服务不得直接调用单一 provider，必须通过 `free_llm.router_service`。
+<!-- END 2026-04-20 免费LLM编排与动态白名单语义复核 -->

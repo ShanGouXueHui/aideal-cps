@@ -24,3 +24,6 @@ ops/deploy/targets.local.env
 backups/
 run/
 logs/*.log
+run/free_llm_*.json
+run/proactive_recommend_whitelist.json
+logs/free_llm_usage.log

@@ -385,6 +385,24 @@ def run_nightly_catalog_refresh(db: Session) -> dict[str, Any]:
     purge_result = purge_stale_products(db)
 
     try:
+        from app.services.free_llm.model_catalog_refresh_service import refresh_free_llm_model_catalog
+        from app.services.free_llm.health_probe_service import refresh_free_llm_health
+
+        free_llm_catalog_result = refresh_free_llm_model_catalog()
+        free_llm_health_result = refresh_free_llm_health()
+        free_llm_refresh_result = {
+            "status": "success",
+            "catalog_candidate_count": free_llm_catalog_result.get("candidate_count"),
+            "health_success_count": free_llm_health_result.get("success_count"),
+            "health_probe_count": free_llm_health_result.get("probe_count"),
+        }
+    except Exception as exc:
+        free_llm_refresh_result = {
+            "status": "failed",
+            "error": str(exc),
+        }
+
+    try:
         whitelist_result = refresh_proactive_recommend_whitelist(db)
     except Exception as exc:
         whitelist_result = {
@@ -397,5 +415,6 @@ def run_nightly_catalog_refresh(db: Session) -> dict[str, Any]:
         "keyword_refresh": keyword_result,
         "inactive_cleanup": inactive_result,
         "purge_cleanup": purge_result,
+        "free_llm_refresh": free_llm_refresh_result,
         "proactive_whitelist_refresh": whitelist_result,
     }
