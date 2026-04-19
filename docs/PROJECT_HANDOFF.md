@@ -772,3 +772,56 @@ P3 当前新增：
 - 临时域名 `aidealfy.kindafeelfy.cn` 暂保留 24-72 小时作为回滚通道，确认正式域名稳定后再删除解析和 Nginx block
 - 微信消息加密方式当前继续保持“明文模式”
 - 不要直接在微信后台切“安全模式”，当前代码尚未实现 `msg_signature` 校验、AES 解密、加密回复；后续需单独做 `feat(wechat): support encrypted callback mode`
+
+<!-- START 2026-04-19 商品池关键词扩容与主动推荐池质量过滤 -->
+## 2026-04-19 商品池关键词扩容与主动推荐池质量过滤
+
+### 已完成事项
+
+1. 夜间商品池刷新关键词已从少量测试词扩展为 20 个正式商用品类词：
+   - 洗衣液、牙膏、抽纸、宝宝湿巾、卷纸、厨房纸、垃圾袋、洗洁精、洗手液、沐浴露、洗发水、护发素、卫生巾、湿厕纸、保鲜袋、保鲜膜、收纳盒、水杯、毛巾、猫砂
+
+2. 生产配置已提交：
+   - `config/catalog_refresh_rules.json`
+   - `keyword_sync_limit = 10`
+   - `goods_query_sort_name = inOrderCount30Days`
+   - `goods_query_sort = desc`
+   - commit: `485587d`
+
+3. 主动推荐池已增加商用质量过滤：
+   - 配置文件：`config/proactive_recommend_rules.json`
+   - 过滤试用、体验、便携、随身、小样、随机发、新人/拉新等不适合主动推送的商品
+   - 增加最低有效价、最低预估佣金、最低销量约束
+   - 代码位置：`app/services/wechat_recommend_runtime_service.py`
+   - commit: `7929e40`
+
+4. 生产验证结果：
+   - `aideal.service` 已重启并正常运行
+   - 主动推荐池数量：22
+   - `bad_title_count = 0`
+   - 20 个关键词刷新已生效
+   - manual refresh 中 `keyword_refresh total = 178`
+
+### 当前设计口径
+
+- `products` 表是商品候选池，不要求所有 active 商品都能主动推送。
+- 主动推荐必须通过更严格的 `_active_recommend_products()` 和 `config/proactive_recommend_rules.json` 过滤。
+- 合规过滤、质量过滤、URL 域名、文案模板都必须走配置文件或数据库，禁止把业务常量散落在代码里。
+- 生产公开域名统一使用 `https://aidealfy.cn`。
+- 临时域名 `aidealfy.kindafeelfy.cn` 只作为短期回滚通道，后续确认稳定后删除 DNS 和 Nginx block。
+
+### 后续待做
+
+1. 增加商品池刷新 JSON 日志结构化输出，避免 sed/tail 截断导致 JSON 解析失败。
+2. 将主动推荐池评分规则继续配置化或 DB 化：
+   - 价格权重
+   - 佣金权重
+   - 销量权重
+   - 店铺健康分权重
+   - 类目多样性权重
+3. 菜单优化主线继续：
+   - 今日推荐图文入口
+   - 找优惠 / 搜商品入口
+   - 我的会员 / 我的订单 / 帮助说明
+
+<!-- END 2026-04-19 商品池关键词扩容与主动推荐池质量过滤 -->

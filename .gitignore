@@ -21,3 +21,6 @@ tmp/
 logs/
 ops/deploy/targets.env
 ops/deploy/targets.local.env
+backups/
+run/
+logs/*.log
