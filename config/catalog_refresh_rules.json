@@ -1,16 +1,32 @@
 {
   "enabled": true,
-  "elite_ids": [129],
+  "elite_ids": [
+    129
+  ],
   "keyword_seeds": [
-    "卫生纸",
-    "卫生巾",
     "洗衣液",
-    "宝宝湿巾",
+    "牙膏",
     "抽纸",
-    "牙膏"
+    "宝宝湿巾",
+    "卷纸",
+    "厨房纸",
+    "垃圾袋",
+    "洗洁精",
+    "洗手液",
+    "沐浴露",
+    "洗发水",
+    "护发素",
+    "卫生巾",
+    "湿厕纸",
+    "保鲜袋",
+    "保鲜膜",
+    "收纳盒",
+    "水杯",
+    "毛巾",
+    "猫砂"
   ],
   "elite_sync_limit": 20,
-  "keyword_sync_limit": 12,
+  "keyword_sync_limit": 10,
   "goods_query_sort_name": "inOrderCount30Days",
   "goods_query_sort": "desc",
   "expire_hours": 72,
