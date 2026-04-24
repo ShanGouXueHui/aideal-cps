@@ -18,7 +18,21 @@ from app.services.recommendation_service import generate_reason
 from app.services.wechat_copy_service import get_copy
 
 
-BASE_URL = os.getenv("PUBLIC_BASE_URL", "http://8.136.28.6")
+def _public_base_url() -> str:
+    env_url = (os.getenv("PUBLIC_BASE_URL") or "").strip().rstrip("/")
+    if env_url:
+        return env_url
+    try:
+        from app.core.wechat_recommend_config import PUBLIC_BASE_URL
+
+        if PUBLIC_BASE_URL:
+            return str(PUBLIC_BASE_URL).rstrip("/")
+    except Exception:
+        pass
+    return "https://aidealfy.cn"
+
+
+BASE_URL = _public_base_url()
 
 
 def _safe_decimal(value: Any) -> Decimal:
@@ -288,6 +302,104 @@ def build_recommendation_text(selected: list[tuple[str, Any]], openid: str, inte
         blocks.append(f"{idx}.\n{build_product_block(role_label, item, openid, slot=idx)}")
 
     return f"{intro}\n\n" + "\n\n".join(blocks) + f"\n\n{get_copy('retry_hint_text')}"
+
+
+def _item_image_url(item: Any) -> str:
+    for key in ("image_url", "main_image_url", "image", "white_image"):
+        value = str(_get_value(item, key, "") or "").strip()
+        if value:
+            return value
+    return ""
+
+
+def _item_value_line(item: Any) -> str:
+    price = _safe_decimal(_get_value(item, "price", 0) or 0)
+    coupon_price = _safe_decimal(_get_value(item, "coupon_price", 0) or 0)
+    sales = _safe_int(_get_value(item, "sales_volume", 0) or 0)
+
+    effective = coupon_price if coupon_price > 0 and (price <= 0 or coupon_price <= price) else price
+    saved = price - effective if price > 0 and effective > 0 and effective < price else Decimal("0")
+
+    if saved > 0:
+        left = f"省¥{saved:.0f}" if saved >= 10 else f"省¥{saved:.2f}".rstrip("0").rstrip(".")
+    elif effective > 0:
+        left = f"到手¥{effective:.2f}".rstrip("0").rstrip(".")
+    else:
+        left = "点开看实时价"
+
+    if sales >= 10000:
+        return f"{left}｜热销{sales / 10000:.1f}万+".replace(".0万+", "万+")
+    if sales >= 100:
+        return f"{left}｜热销{sales}+"
+    return left
+
+
+def build_recommendation_news_articles(selected: list[tuple[str, Any]], openid: str, *, scene: str = "product_request") -> list[dict[str, str]]:
+    articles: list[dict[str, str]] = []
+
+    for idx, (role_label, item) in enumerate(selected[:3], start=1):
+        title_raw = str(_get_value(item, "title", "优选商品") or "优选商品").strip()
+        role = str(role_label or "更值得看").strip()
+        value_line = _item_value_line(item)
+        shop_name = str(_get_value(item, "shop_name", "") or "").strip()
+        reason = str(_get_value(item, "reason", "") or "").strip()
+
+        if not reason:
+            if isinstance(item, dict) and item.get("source") == "jd_live":
+                reason = "实时检索命中，已过滤高风险商品。"
+            else:
+                reason = generate_reason(item)
+
+        desc_parts = [value_line]
+        if shop_name:
+            desc_parts.append(shop_name)
+        if reason:
+            desc_parts.append(reason)
+
+        url = build_product_link(item, openid, scene=scene, slot=idx)
+        pic_url = _item_image_url(item)
+
+        if not url:
+            continue
+
+        articles.append(
+            {
+                "title": f"{role}｜{_short_title(title_raw, 18)}"[:28],
+                "description": "｜".join(desc_parts)[:120],
+                "pic_url": pic_url,
+                "url": url,
+            }
+        )
+
+    return articles
+
+
+def get_recommendation_news_articles(db: Session, openid: str, content: str) -> list[dict[str, str]]:
+    intent = parse_product_intent(content)
+    if not intent["shopping_intent"]:
+        return []
+
+    adult_verified = _resolve_adult_verified(db, openid)
+    local_candidates = search_candidate_products(db, intent, adult_verified=adult_verified, limit=60)
+
+    if not local_candidates and intent.get("commodity"):
+        fallback_intent = dict(intent)
+        fallback_intent["search_tokens"] = [intent["commodity"]]
+        local_candidates = search_candidate_products(db, fallback_intent, adult_verified=adult_verified, limit=60)
+        intent = fallback_intent
+
+    rules = load_live_search_rules()
+    if len(local_candidates) >= int(rules["local_result_threshold"]):
+        selected = select_three_products(local_candidates, intent)
+        return build_recommendation_news_articles(selected, openid, scene="product_request")
+
+    live_candidates = _search_live_fallback(intent, adult_verified=adult_verified)
+    if live_candidates:
+        selected = select_three_products(live_candidates, intent)
+        return build_recommendation_news_articles(selected, openid, scene="product_request_live")
+
+    selected = select_three_products(local_candidates, intent)
+    return build_recommendation_news_articles(selected, openid, scene="product_request")
 
 
 def build_adult_gate_text(openid: str) -> str:

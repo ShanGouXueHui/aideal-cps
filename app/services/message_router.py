@@ -68,6 +68,22 @@ def _get_today_text(db, wechat_openid: str) -> str:
     return str(result or "").strip()
 
 
+def _get_find_entry_news_articles(db, wechat_openid: str) -> list[dict[str, str]]:
+    result = _call_candidates(
+        "app.services.wechat_recommend_runtime_service",
+        ["get_find_product_entry_news_articles"],
+        [
+            ((db, wechat_openid), {}),
+            ((), {"db": db, "wechat_openid": wechat_openid}),
+        ],
+    )
+    if isinstance(result, (list, tuple)):
+        return [item for item in result if isinstance(item, dict)]
+    return []
+
+
+
+
 def _get_find_entry_text(db, wechat_openid: str) -> str:
     result = _call_candidates(
         "app.services.wechat_recommend_runtime_service",
@@ -94,6 +110,26 @@ def _get_partner_center_text(db, wechat_openid: str) -> str:
         ],
     )
     return str(result or "").strip()
+
+
+def _get_dialog_news_articles(db, wechat_openid: str, content: str) -> list[dict[str, str]]:
+    result = _call_candidates(
+        "app.services.wechat_dialog_service",
+        [
+            "get_recommendation_news_articles",
+            "get_product_request_news_articles",
+        ],
+        [
+            ((db, wechat_openid, content), {}),
+            ((), {"db": db, "openid": wechat_openid, "content": content}),
+            ((), {"db": db, "wechat_openid": wechat_openid, "content": content}),
+        ],
+    )
+    if isinstance(result, (list, tuple)):
+        return [item for item in result if isinstance(item, dict)]
+    return []
+
+
 
 
 def _get_dialog_text(db, wechat_openid: str, content: str, msg_type: str) -> str:
@@ -159,9 +195,18 @@ def route(
     if msg_type == "event" and event == "CLICK" and event_key == "找商品":
         db = SessionLocal()
         try:
-            text = _get_find_entry_text(db, to_user)
+            articles = _get_find_entry_news_articles(db, to_user)
+            text = "" if articles else _get_find_entry_text(db, to_user)
         finally:
             db.close()
+
+        if articles:
+            logger.info(
+                "find_product passive-news branch | openid_tail=%s article_count=%s",
+                (to_user or "")[-8:],
+                len(articles),
+            )
+            return build_news_response(to_user, from_user, articles)
 
         if not text:
             text = "可以直接回复你想买的商品，比如：洗衣液、卫生纸、宝宝湿巾。"
@@ -181,9 +226,19 @@ def route(
     if msg_type == "text":
         db = SessionLocal()
         try:
-            text = _get_dialog_text(db, to_user, content, msg_type)
+            articles = _get_dialog_news_articles(db, to_user, content)
+            text = "" if articles else _get_dialog_text(db, to_user, content, msg_type)
         finally:
             db.close()
+
+        if articles:
+            logger.info(
+                "product_request passive-news branch | openid_tail=%s article_count=%s content=%s",
+                (to_user or "")[-8:],
+                len(articles),
+                content[:80],
+            )
+            return build_news_response(to_user, from_user, articles)
 
         if not text:
             text = "可以直接回复你想买的商品，比如：洗衣液、卫生纸、宝宝湿巾。"
