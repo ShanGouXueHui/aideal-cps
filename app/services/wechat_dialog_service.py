@@ -95,6 +95,33 @@ def _token_match_count(item: Any, tokens: list[str]) -> int:
     return count
 
 
+def _item_haystack(item: Any) -> str:
+    return " ".join(
+        [
+            str(_get_value(item, "title", "") or ""),
+            str(_get_value(item, "category_name", "") or ""),
+            str(_get_value(item, "shop_name", "") or ""),
+        ]
+    ).lower()
+
+
+def _specialization_penalty(item: Any, intent: dict[str, Any]) -> Decimal:
+    original = str(intent.get("original_text", "") or "").lower()
+    haystack = _item_haystack(item)
+
+    penalty = Decimal("0")
+    special_tokens = ["内衣", "婴儿", "宝宝", "儿童", "宠物", "猫", "狗", "奶瓶", "厨房"]
+    for token in special_tokens:
+        if token in haystack and token not in original:
+            penalty += Decimal("18")
+
+    commodity = str(intent.get("commodity") or "").strip().lower()
+    if commodity and commodity not in haystack:
+        penalty += Decimal("8")
+
+    return penalty
+
+
 def _preference_score(item: Any, intent: dict[str, Any]) -> Decimal:
     token_hits = Decimal(_token_match_count(item, intent.get("search_tokens", [])))
     sales_volume = _safe_decimal(_get_value(item, "sales_volume", 0) or 0)
@@ -118,6 +145,8 @@ def _preference_score(item: Any, intent: dict[str, Any]) -> Decimal:
         score += sales_volume * Decimal("0.08")
     if intent.get("wants_self_operated") and str(_get_value(item, "owner", "") or "") == "g":
         score += Decimal("12")
+
+    score -= _specialization_penalty(item, intent)
     return score
 
 
@@ -214,6 +243,22 @@ def _item_identity(item: Any) -> tuple[str, str]:
     return ("title", str(title))
 
 
+def _norm_pick_text(value: Any) -> str:
+    return str(value or "").strip().lower()
+
+
+def _same_category(a: Any, b: Any) -> bool:
+    av = _norm_pick_text(_get_value(a, "category_name", ""))
+    bv = _norm_pick_text(_get_value(b, "category_name", ""))
+    return bool(av and bv and av == bv)
+
+
+def _same_shop(a: Any, b: Any) -> bool:
+    av = _norm_pick_text(_get_value(a, "shop_name", ""))
+    bv = _norm_pick_text(_get_value(b, "shop_name", ""))
+    return bool(av and bv and av == bv)
+
+
 def select_three_products(items: list[Any], intent: dict[str, Any]) -> list[tuple[str, Any]]:
     if not items:
         return []
@@ -227,10 +272,17 @@ def select_three_products(items: list[Any], intent: dict[str, Any]) -> list[tupl
     remaining = [p for p in remaining if _item_identity(p) != best_fit_key]
 
     if remaining:
+        diverse_pool = [p for p in remaining if not _same_category(p, best_fit)]
+        if not diverse_pool:
+            diverse_pool = [p for p in remaining if not _same_shop(p, best_fit)]
+        if not diverse_pool:
+            diverse_pool = remaining
+
         best_sales = max(
-            remaining,
+            diverse_pool,
             key=lambda p: (
                 _safe_decimal(_get_value(p, "sales_volume", 0) or 0),
+                _preference_score(p, intent),
                 _safe_decimal(_get_value(p, "merchant_health_score", 0) or 0),
             ),
         )
@@ -239,9 +291,23 @@ def select_three_products(items: list[Any], intent: dict[str, Any]) -> list[tupl
         remaining = [p for p in remaining if _item_identity(p) != best_sales_key]
 
     if remaining:
+        chosen_items = [item for _, item in selected]
+        diverse_pool = [
+            p for p in remaining
+            if all(not _same_category(p, chosen) for chosen in chosen_items)
+        ]
+        if not diverse_pool:
+            diverse_pool = [
+                p for p in remaining
+                if all(not _same_shop(p, chosen) for chosen in chosen_items)
+            ]
+        if not diverse_pool:
+            diverse_pool = remaining
+
         safest = max(
-            remaining,
+            diverse_pool,
             key=lambda p: (
+                _preference_score(p, intent),
                 _safe_decimal(_get_value(p, "merchant_health_score", 0) or 0),
                 _safe_decimal(_get_value(p, "commission_rate", 0) or 0),
             ),
