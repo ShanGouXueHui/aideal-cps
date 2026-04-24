@@ -109,7 +109,40 @@
     "性欲",
     "勃起",
     "维修",
-    "上门服务"
+    "上门服务",
+    "盲盒",
+    "盲抽",
+    "预售",
+    "预链接",
+    "联系",
+    "联系客服",
+    "咨询客服",
+    "团购联系",
+    "定制",
+    "定做",
+    "均码",
+    "尺码",
+    "s码",
+    "m码",
+    "l码",
+    "xl码",
+    "xxl",
+    "止痒",
+    "处方",
+    "康复",
+    "术后",
+    "诊疗",
+    "检查床",
+    "吸痰",
+    "无菌",
+    "外科",
+    "医院用",
+    "成人尿裤",
+    "成人纸尿裤",
+    "内衣",
+    "内裤",
+    "安装服务",
+    "送货上门"
   ],
   "exclude_shop_keywords": [
     "服务旗舰店"
@@ -178,5 +211,12 @@
     "task": "catalog_whitelist_review",
     "mode": "filter_only_never_add",
     "note": "免费LLM只做语义复核和删减；硬合规规则仍是最高优先级。"
+  },
+  "return_risk_policy": {
+    "enabled": true,
+    "max_return_rate": 0.12,
+    "max_refund_rate": 0.12,
+    "min_good_comment_rate": 0.9,
+    "note": "当前 products 表尚无真实退货率字段；先用确定性标题/类目代理过滤。若 JD 返回 return/refund/good_comment 字段，后续入库后启用硬过滤。"
   }
 }
