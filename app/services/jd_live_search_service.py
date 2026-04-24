@@ -107,6 +107,38 @@ def _to_int(value: Any) -> int:
         return 0
 
 
+
+def _pick_comment_count(item: dict[str, Any]) -> int | None:
+    comment_info = item.get("commentInfo") or {}
+    for key in ("commentCount", "comments", "comment_count"):
+        value = item.get(key)
+        if value is None:
+            value = comment_info.get(key)
+        try:
+            if value is not None and str(value).strip() != "":
+                return int(float(str(value).replace(",", "")))
+        except Exception:
+            pass
+    return None
+
+
+def _pick_good_comments_share(item: dict[str, Any]) -> float | None:
+    comment_info = item.get("commentInfo") or {}
+    for key in ("goodCommentsShare", "good_comments_share", "goodCommentShare"):
+        value = item.get(key)
+        if value is None:
+            value = comment_info.get(key)
+        try:
+            if value is not None and str(value).strip() != "":
+                v = float(str(value).replace("%", "").strip())
+                if v > 1:
+                    v = v / 100.0
+                return v
+        except Exception:
+            pass
+    return None
+
+
 def _build_reason(row: dict[str, Any]) -> str:
     coupon_price = _to_decimal(row.get("coupon_price"))
     price = _to_decimal(row.get("price"))
@@ -161,6 +193,8 @@ def _normalize_live_item(item: dict[str, Any], short_url: str | None = None) -> 
         "commission_rate": _to_float(commission_info.get("commissionShare")),
         "estimated_commission": _to_float(commission_info.get("commission")),
         "sales_volume": sales_volume,
+        "comment_count": _pick_comment_count(item),
+        "good_comments_share": _pick_good_comments_share(item),
         "merchant_health_score": None,
         "merchant_recommendable": True,
         "elite_name": None,
@@ -169,6 +203,8 @@ def _normalize_live_item(item: dict[str, Any], short_url: str | None = None) -> 
             "coupon_price": coupon_price,
             "price": price,
             "sales_volume": sales_volume,
+        "comment_count": _pick_comment_count(item),
+        "good_comments_share": _pick_good_comments_share(item),
         }),
         "compliance_level": meta["compliance_level"],
         "age_gate_required": meta["age_gate_required"],

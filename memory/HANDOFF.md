@@ -564,3 +564,17 @@
 - 如后续 JD 返回 return_rate / refund_rate / after_sale_score / good_comment_rate 等字段，需入库并启用硬过滤。
 - 新增 `scripts/audit_catalog_consumer_coverage.py`，用于输出消费维度覆盖、bad-tail 样本、退货率字段可用性。
 <!-- END 2026-04-24 消费维度覆盖与退货风险代理过滤 -->
+
+<!-- START 2026-04-24 好评率评论数质量门槛与弱维度定向刷新 -->
+## 2026-04-24 好评率/评论数质量门槛与弱维度定向刷新
+
+本次补充：
+- `products` 模型接入 `comment_count` 与 `good_comments_share`。
+- JD 商品同步与实时关键词刷新尝试提取评论数、好评率。
+- 主动推荐池增加质量门槛：
+  - `min_good_comment_rate = 0.90`
+  - `min_comment_count = 20`
+  - 字段缺失时不硬杀，字段存在且低于阈值时过滤。
+- 真实退货率/退款率字段仍未稳定入库；后续如 JD 返回 `return_rate` / `refund_rate` / `after_sale_score`，需要入库并启用硬过滤。
+- 对男性、女性、学生、学习、办公、玩具、party、数码小配件、运动户外等弱覆盖维度做定向关键词刷新。
+<!-- END 2026-04-24 好评率评论数质量门槛与弱维度定向刷新 -->

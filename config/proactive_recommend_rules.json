@@ -217,6 +217,7 @@
     "max_return_rate": 0.12,
     "max_refund_rate": 0.12,
     "min_good_comment_rate": 0.9,
-    "note": "当前 products 表尚无真实退货率字段；先用确定性标题/类目代理过滤。若 JD 返回 return/refund/good_comment 字段，后续入库后启用硬过滤。"
+    "note": "真实退货率/退款率字段暂未稳定入库；当前使用 good_comments_share/comment_count + 确定性标题/类目代理过滤。若后续 JD 返回 return/refund 字段，启用硬过滤。",
+    "min_comment_count": 20
   }
 }

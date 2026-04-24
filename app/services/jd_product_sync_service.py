@@ -65,6 +65,38 @@ def _coupon_summary(item: dict[str, Any]) -> str | None:
     return None
 
 
+
+def _pick_comment_count(item: dict[str, Any]) -> int | None:
+    comment_info = item.get("commentInfo") or {}
+    for key in ("commentCount", "comments", "comment_count"):
+        value = item.get(key)
+        if value is None:
+            value = comment_info.get(key)
+        try:
+            if value is not None and str(value).strip() != "":
+                return int(float(str(value).replace(",", "")))
+        except Exception:
+            pass
+    return None
+
+
+def _pick_good_comments_share(item: dict[str, Any]) -> float | None:
+    comment_info = item.get("commentInfo") or {}
+    for key in ("goodCommentsShare", "good_comments_share", "goodCommentShare"):
+        value = item.get(key)
+        if value is None:
+            value = comment_info.get(key)
+        try:
+            if value is not None and str(value).strip() != "":
+                v = float(str(value).replace("%", "").strip())
+                if v > 1:
+                    v = v / 100.0
+                return v
+        except Exception:
+            pass
+    return None
+
+
 def _extract_sku_id_from_material_url(material_url: str | None) -> str | None:
     text = str(material_url or "")
     m = re.search(r"/product/(\d+)\.html", text)
@@ -124,6 +156,8 @@ def normalize_jd_item(
         "commission_rate": float(commission_info.get("commissionShare") or 0),
         "estimated_commission": Decimal(str(commission_info.get("commission") or 0)),
         "sales_volume": int(item.get("inOrderCount30DaysSku") or item.get("inOrderCount30Days") or 0),
+        "comment_count": _pick_comment_count(item),
+        "good_comments_share": _pick_good_comments_share(item),
         "coupon_info": _coupon_summary(item),
         "ai_reason": None,
         "ai_tags": resource_info.get("eliteName"),

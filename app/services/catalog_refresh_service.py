@@ -39,6 +39,8 @@ def _product_payload_from_live_row(row: dict[str, Any], *, keyword: str, source_
         "commission_rate": row.get("commission_rate"),
         "estimated_commission": row.get("estimated_commission"),
         "sales_volume": row.get("sales_volume"),
+        "comment_count": row.get("comment_count"),
+        "good_comments_share": row.get("good_comments_share"),
         "coupon_info": row.get("coupon_info"),
         "ai_reason": row.get("reason"),
         "ai_tags": ai_tags,

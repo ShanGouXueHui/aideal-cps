@@ -23,6 +23,8 @@ class Product(Base):
     commission_rate = Column(Float, default=0.0)
     estimated_commission = Column(Numeric(12, 2), default=0.00)
     sales_volume = Column(Integer, default=0)
+    comment_count = Column(Integer, nullable=True, index=True)
+    good_comments_share = Column(Float, nullable=True, index=True)
     coupon_info = Column(String(255), nullable=True)
     ai_reason = Column(Text, nullable=True)
     ai_tags = Column(String(255), nullable=True)

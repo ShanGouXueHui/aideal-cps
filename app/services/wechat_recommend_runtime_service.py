@@ -127,6 +127,9 @@ def _is_commercial_proactive_candidate(product: Product) -> bool:
     max_effective_price = _to_float(cfg.get("max_effective_price", 0))
     min_estimated_commission = _to_float(cfg.get("min_estimated_commission", 0))
     min_sales_volume = _to_int(cfg.get("min_sales_volume", 0))
+    return_policy = cfg.get("return_risk_policy") or {}
+    min_good_comment_rate = _to_float(return_policy.get("min_good_comment_rate", 0))
+    min_comment_count = _to_int(return_policy.get("min_comment_count", 0))
 
     effective_price = _effective_price(product)
     estimated_commission = _to_float(getattr(product, "estimated_commission", None))
@@ -139,6 +142,13 @@ def _is_commercial_proactive_candidate(product: Product) -> bool:
     if min_estimated_commission > 0 and estimated_commission < min_estimated_commission:
         return False
     if min_sales_volume > 0 and sales_volume < min_sales_volume:
+        return False
+
+    good_comments_share = _to_float(getattr(product, "good_comments_share", None))
+    comment_count = _to_int(getattr(product, "comment_count", None))
+    if min_good_comment_rate > 0 and good_comments_share > 0 and good_comments_share < min_good_comment_rate:
+        return False
+    if min_comment_count > 0 and comment_count > 0 and comment_count < min_comment_count:
         return False
 
     return True
