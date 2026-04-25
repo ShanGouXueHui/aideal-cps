@@ -675,6 +675,16 @@ def get_find_product_entry_text_reply(db: Session, wechat_openid: str) -> str | 
     ).strip()
 
 
+
+def _short_title(value: str, limit: int = 24) -> str:
+    text = str(value or "").strip()
+    if not text:
+        return "优选商品"
+    if len(text) <= limit:
+        return text
+    return text[: max(1, limit - 1)] + "…"
+
+
 def get_find_product_entry_news_articles(db: Session, wechat_openid: str) -> list[dict[str, str]]:
     product = _find_entry_product(db, wechat_openid=wechat_openid)
     if not product:
