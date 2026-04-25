@@ -172,6 +172,21 @@ def _explicit_specialty_tokens(intent: dict[str, Any]) -> list[str]:
     return [token for token in EXPLICIT_SPECIALTY_TOKENS if token in original]
 
 
+def _explicit_specialty_query_label(intent: dict[str, Any]) -> str:
+    original = str(intent.get("original_text", "") or "").strip()
+    commodity = str(intent.get("commodity") or "").strip()
+
+    if original:
+        label = original
+        for token in ["便宜一点", "便宜", "低价", "划算", "性价比", "实惠", "销量高一点", "销量高", "销量", "一点", "，", ","]:
+            label = label.replace(token, " ")
+        label = " ".join(label.split())
+        if label:
+            return label[:24]
+
+    return commodity[:24] or "这个细分商品"
+
+
 def _commodity_family_tokens(intent: dict[str, Any]) -> list[str]:
     commodity = str(intent.get("commodity") or "").strip().lower()
     raw_tokens = [commodity] if commodity else []
@@ -249,8 +264,9 @@ def _filter_explicit_specialty_items(items: list[Any], intent: dict[str, Any]) -
         return items
 
     narrowed = [item for item in items if _matches_explicit_specialty_and_commodity(item, intent)]
-    # 有明确细分候选时硬收窄；没有时回退，避免无结果。
-    return narrowed or items
+    # 用户明确说“内衣洗衣液 / 儿童牙膏 / 宠物湿巾”等细分需求时，
+    # 没有干净细分候选就返回空，不能静默退回普通泛品类误导用户。
+    return narrowed
 
 
 def _is_dialog_bad_tail_item(item: Any) -> bool:
@@ -480,8 +496,11 @@ def select_three_products(items: list[Any], intent: dict[str, Any]) -> list[tupl
     if not clean_remaining:
         return []
 
-    # 再做显式细分需求收窄；如果没有干净的细分候选，则退回干净的商品族候选，而不是退回脏数据。
+    # 再做显式细分需求收窄；显式细分没有干净候选时返回空，不静默退回泛品类。
     remaining = _filter_explicit_specialty_items(clean_remaining, intent)
+    if not remaining:
+        return []
+
     selected: list[tuple[str, Any]] = []
 
     best_fit = max(remaining, key=lambda p: _preference_score(p, intent))
@@ -569,6 +588,15 @@ def build_product_block(role_label: str, item: Any, openid: str, *, slot: int) -
 
 
 def build_recommendation_text(selected: list[tuple[str, Any]], openid: str, intent: dict[str, Any], *, source_label: str = "local") -> str:
+    if not selected and _explicit_specialty_tokens(intent):
+        label = _explicit_specialty_query_label(intent)
+        return (
+            f"这类「{label}」我暂时没筛到足够稳的商品。\n\n"
+            "我已经过滤掉了批发大宗、价格异常、随机款、需咨询客服、医疗/维修/服务类等不适合直接推荐的商品。\n\n"
+            "你可以换个说法再试，比如：内衣洗衣液 500g、儿童牙膏、宠物湿巾；"
+            "也可以直接回复一个更宽泛的品类，比如：洗衣液。"
+        )  # SPECIALTY_EMPTY_NOTICE_GATE
+
     if not selected:
         return get_copy("no_result_text") + "\n\n" + get_copy("category_gap_text")
 
@@ -675,7 +703,9 @@ def get_recommendation_news_articles(db: Session, openid: str, content: str) -> 
     rules = load_live_search_rules()
     if len(local_candidates) >= int(rules["local_result_threshold"]):
         selected = select_three_products(local_candidates, intent)
-        return build_recommendation_news_articles(selected, openid, scene="product_request")
+        if selected:
+            return build_recommendation_news_articles(selected, openid, scene="product_request")
+        # 显式细分需求若被本地硬过滤清空，继续走实时搜索补货；不静默退回泛品类。
 
     live_candidates = _search_live_fallback(intent, adult_verified=adult_verified)
     if live_candidates:
