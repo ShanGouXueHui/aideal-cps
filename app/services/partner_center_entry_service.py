@@ -44,7 +44,7 @@ def _get_recent_asset_count(db: Session, partner_account_id: int) -> int:
         return 0
 
 
-def get_partner_center_entry_reply(db: Session, wechat_openid: str) -> str:
+def _get_partner_center_entry_reply_legacy(db: Session, wechat_openid: str) -> str:
     user = _get_user(db, wechat_openid)
     if not user:
         return (
@@ -100,3 +100,66 @@ def get_partner_center_entry_reply(db: Session, wechat_openid: str) -> str:
         "4）续费",
     ])
     return "\n".join(lines)
+
+def _partner_center_commercial_entry_text() -> str:
+    return (
+        "合伙人中心｜智省优选\n\n"
+        "你当前还没有开通合伙人身份。\n\n"
+        "适合谁：\n"
+        "1）经常给家里、朋友、同事买日用品的人\n"
+        "2）愿意把自己觉得划算的商品顺手分享出去的人\n"
+        "3）希望有一个更省事的选品、素材和订单记录入口的人\n\n"
+        "开通后主要能做什么：\n"
+        "1）获取更适合分享的商品推荐\n"
+        "2）查看可分享商品、素材和转链入口\n"
+        "3）查看订单、返佣和合伙人规则\n"
+        "4）后续接入更完整的分享数据和用户偏好分析\n\n"
+        "开通方式：\n"
+        "1）直接开通：100 元\n"
+        "2）自动升级：累计采购满 10000 元\n\n"
+        "重要说明：\n"
+        "合伙人收益以京东联盟实际结算为准；退货、取消、无效订单、平台规则调整等情况可能不产生收益。"
+        "这里不承诺固定收益，也不建议为返佣而非理性消费。\n\n"
+        "你可以继续回复：\n"
+        "1）合伙人规则\n"
+        "2）开通合伙人\n"
+        "3）今日推荐\n"
+    )
+
+
+def get_partner_center_entry_reply(db, wechat_openid: str) -> str:
+    """Commercial partner center entry.
+
+    Keeps legacy payload for already-opened/recognized partner states, but replaces
+    the unopened hard prompt with a commercial, compliant explanation.
+    """  # PARTNER_CENTER_COMMERCIAL_WRAPPER_GATE
+    legacy_text = ""
+    try:
+        legacy_text = str(_get_partner_center_entry_reply_legacy(db, wechat_openid) or "").strip()
+    except Exception:
+        legacy_text = ""
+
+    unopened_markers = [
+        "你还没有开通合伙人身份",
+        "当前开通方式",
+        "直接付费 100 元开通",
+        "累计采购满 10000 元自动升级",
+    ]
+
+    if legacy_text and not any(marker in legacy_text for marker in unopened_markers):
+        if "京东联盟实际结算" not in legacy_text and "不承诺固定收益" not in legacy_text:
+            return (
+                legacy_text.rstrip()
+                + "\n\n说明：合伙人收益以京东联盟实际结算为准；退货、取消、无效订单、平台规则调整等情况可能不产生收益，不承诺固定收益。"
+            )
+        return legacy_text
+
+    return _partner_center_commercial_entry_text()
+
+
+def get_partner_center_entry_text_reply(db, wechat_openid: str) -> str:
+    return get_partner_center_entry_reply(db, wechat_openid)
+
+
+def build_partner_center_entry_text_reply(db, wechat_openid: str) -> str:
+    return get_partner_center_entry_reply(db, wechat_openid)
