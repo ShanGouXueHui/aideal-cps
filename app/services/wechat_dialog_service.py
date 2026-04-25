@@ -161,6 +161,7 @@ DIALOG_BAD_TAIL_BLOCK_KEYWORDS = [
     "防身", "防狼", "电击", "甩棍",
     "维修", "上门服务", "安装服务",
     "流量卡", "电话卡", "办号",
+    "周边礼盒", "联系", "客服", "批发", "3000",
 ]
 
 
@@ -171,13 +172,16 @@ def _explicit_specialty_tokens(intent: dict[str, Any]) -> list[str]:
 
 def _commodity_family_tokens(intent: dict[str, Any]) -> list[str]:
     commodity = str(intent.get("commodity") or "").strip().lower()
-    tokens = [commodity] if commodity else []
-    tokens.extend([str(x or "").strip().lower() for x in intent.get("search_tokens", []) if str(x or "").strip()])
+    raw_tokens = [commodity] if commodity else []
+    raw_tokens.extend([str(x or "").strip().lower() for x in intent.get("search_tokens", []) if str(x or "").strip()])
 
+    joined = " ".join(raw_tokens)
     family: list[str] = []
-    joined = " ".join(tokens)
+
+    # family 只表示“商品族”，不能混入“内衣/宝宝/儿童/宠物”等细分词。
+    # 否则“内衣收纳袋”会被误判成“内衣洗衣液”。
     if "洗衣" in joined:
-        family.extend(["洗衣", "洗衣液", "洗衣凝珠", "清洗液"])
+        family.extend(["洗衣", "洗衣液", "洗衣凝珠", "清洗液", "洗涤剂", "洗衣粉", "丝毛净"])
     if "牙膏" in joined:
         family.append("牙膏")
     if "牙刷" in joined:
@@ -191,8 +195,17 @@ def _commodity_family_tokens(intent: dict[str, Any]) -> list[str]:
     if "纸巾" in joined or "抽纸" in joined or "卫生纸" in joined:
         family.extend(["纸巾", "抽纸", "卫生纸"])
 
-    family.extend(tokens)
+    if not family and commodity:
+        family.append(commodity)
+
     return list(dict.fromkeys([x for x in family if x]))
+
+
+SPECIALTY_FALSE_POSITIVE_WORDS = [
+    "收纳袋", "整理袋", "行李箱", "洗漱包", "鞋袋", "衣服收纳", "旅行收纳",
+    "袜子", "短袜", "休闲袜", "船袜", "丝袜",
+    "礼盒", "周边礼盒", "联系", "客服", "3000", "批发",
+]
 
 
 def _matches_explicit_specialty_and_commodity(item: Any, intent: dict[str, Any]) -> bool:
@@ -201,6 +214,10 @@ def _matches_explicit_specialty_and_commodity(item: Any, intent: dict[str, Any])
         return False
 
     content = _item_content_haystack(item)
+
+    if any(word.lower() in content for word in SPECIALTY_FALSE_POSITIVE_WORDS):
+        return False
+
     has_specialty = any(token in content for token in explicit_tokens)
     if not has_specialty:
         return False
@@ -208,6 +225,7 @@ def _matches_explicit_specialty_and_commodity(item: Any, intent: dict[str, Any])
     family_tokens = _commodity_family_tokens(intent)
     if not family_tokens:
         return True
+
     return any(token in content for token in family_tokens)
 
 
