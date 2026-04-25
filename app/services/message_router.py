@@ -133,6 +133,19 @@ def _get_dialog_news_articles(db, wechat_openid: str, content: str) -> list[dict
 
 
 def _get_dialog_text(db, wechat_openid: str, content: str, msg_type: str) -> str:
+    product_request_text = _call_candidates(
+        "app.services.wechat_dialog_service",
+        ["get_product_request_text_reply"],
+        [
+            ((db, wechat_openid, content), {}),
+            ((), {"db": db, "openid": wechat_openid, "content": content}),
+            ((), {"db": db, "wechat_openid": wechat_openid, "content": content}),
+        ],
+    )
+    product_request_text = str(product_request_text or "").strip()
+    if product_request_text:
+        return product_request_text  # SPECIALTY_TEXT_FALLBACK_GATE
+
     result = _call_candidates(
         "app.services.wechat_dialog_service",
         [
