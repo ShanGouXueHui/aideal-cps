@@ -416,7 +416,7 @@ def build_recommendation_news_articles(selected: list[tuple[str, Any]], openid: 
             else:
                 reason = generate_reason(item)
 
-        desc_parts = [value_line]
+        desc_parts = [f"{role}｜{value_line}"]
         if shop_name:
             desc_parts.append(shop_name)
         if reason:
@@ -430,7 +430,7 @@ def build_recommendation_news_articles(selected: list[tuple[str, Any]], openid: 
 
         articles.append(
             {
-                "title": f"{role}｜{_short_title(title_raw, 18)}"[:28],
+                "title": _short_title(title_raw, 24)[:28],
                 "description": "｜".join(desc_parts)[:120],
                 "pic_url": pic_url,
                 "url": url,

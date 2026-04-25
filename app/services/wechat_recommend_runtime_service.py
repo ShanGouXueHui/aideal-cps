@@ -687,10 +687,11 @@ def get_find_product_entry_news_articles(db: Session, wechat_openid: str) -> lis
         products=[product],
     )
 
+    title = _short_title(str(getattr(product, "title", "") or "优选商品"), 24)
     desc = f"{_news_value_line(product)}｜也可以直接回复：洗衣液 / 牙膏 / 宝宝湿巾 / 京东自营"
     return [
         {
-            "title": "找商品｜先看这款更热门的",
+            "title": title[:28],
             "description": desc[:120],
             "pic_url": _product_pic_url(product),
             "url": _detail_url(
