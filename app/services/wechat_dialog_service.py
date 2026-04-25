@@ -162,6 +162,8 @@ DIALOG_BAD_TAIL_BLOCK_KEYWORDS = [
     "维修", "上门服务", "安装服务",
     "流量卡", "电话卡", "办号",
     "周边礼盒", "联系", "客服", "批发", "3000",
+    "10000", "1000罐", "1000瓶", "起订", "瓶起订", "罐/箱", "/箱",
+    "业务咨询", "默认型号", "大规格", "整箱起", "整箱装", "箱装批发",
 ]
 
 
@@ -256,12 +258,54 @@ def _is_dialog_bad_tail_item(item: Any) -> bool:
     return any(token.lower() in haystack for token in DIALOG_BAD_TAIL_BLOCK_KEYWORDS)
 
 
-def _filter_dialog_bad_tail_items(items: list[Any]) -> list[Any]:
+def _effective_item_price(item: Any) -> Decimal:
+    price = _safe_decimal(_get_value(item, "price", 0) or 0)
+    coupon_price = _safe_decimal(_get_value(item, "coupon_price", 0) or 0)
+    if coupon_price > 0 and (price <= 0 or coupon_price <= price):
+        return coupon_price
+    return price
+
+
+def _is_price_misaligned_for_intent(item: Any, intent: dict[str, Any]) -> bool:
+    effective = _effective_item_price(item)
+    if effective <= 0:
+        return False
+
+    original = str(intent.get("original_text", "") or "").lower()
+    wants_low_price = bool(intent.get("wants_low_price")) or any(
+        token in original for token in ["便宜", "低价", "划算", "性价比", "实惠"]
+    )
+
+    if wants_low_price and effective > Decimal("199"):
+        return True
+
+    commodity = str(intent.get("commodity") or "").strip().lower()
+    if commodity in {"洗衣液", "牙膏", "牙刷", "湿巾", "纸巾", "抽纸", "卫生纸"} and effective > Decimal("299"):
+        return True
+
+    return False
+
+
+def _filter_dialog_bad_tail_items(
+    items: list[Any],
+    intent: dict[str, Any] | None = None,
+    *,
+    allow_fallback: bool = True,
+) -> list[Any]:
     if not items:
         return items
-    filtered = [item for item in items if not _is_dialog_bad_tail_item(item)]
-    # 避免极端情况下无结果；只要有干净候选，就启用过滤。
-    return filtered or items
+    intent = intent or {}
+    filtered = [
+        item for item in items
+        if not _is_dialog_bad_tail_item(item)
+        and not _is_price_misaligned_for_intent(item, intent)
+    ]
+
+    # 对话推荐里，坏尾巴/批发/高价错配不能回退。
+    # allow_fallback 只保留给极少数非推荐场景；select_three_products 会传 False。
+    if filtered:
+        return filtered
+    return items if allow_fallback else []
 
 
 def _blocked_specialization_tokens(intent: dict[str, Any]) -> list[str]:
@@ -430,8 +474,14 @@ def select_three_products(items: list[Any], intent: dict[str, Any]) -> list[tupl
         return []
 
     remaining = _filter_generic_specialized_items(list(items), intent)
-    remaining = _filter_explicit_specialty_items(remaining, intent)
-    remaining = _filter_dialog_bad_tail_items(remaining)
+
+    # 先做硬质量过滤：坏尾巴、批发大宗、价格错配不允许回退。
+    clean_remaining = _filter_dialog_bad_tail_items(remaining, intent, allow_fallback=False)
+    if not clean_remaining:
+        return []
+
+    # 再做显式细分需求收窄；如果没有干净的细分候选，则退回干净的商品族候选，而不是退回脏数据。
+    remaining = _filter_explicit_specialty_items(clean_remaining, intent)
     selected: list[tuple[str, Any]] = []
 
     best_fit = max(remaining, key=lambda p: _preference_score(p, intent))
