@@ -778,3 +778,33 @@ def get_help_reply() -> str:
 
 def get_welcome_reply() -> str:
     return get_copy("welcome_text")
+
+def get_product_request_text_reply(db: Session, openid: str, content: str) -> str:
+    """Text fallback for product request.
+
+    Used when news-card generation returns no articles.
+    Critical rule: explicit specialty requests, e.g. 内衣洗衣液/儿童牙膏/宠物湿巾,
+    must not silently fall back to generic category copy.
+    """
+    intent = parse_product_intent(content)
+    if not intent.get("shopping_intent"):
+        return ""
+
+    adult_verified = _resolve_adult_verified(db, openid)
+    local_candidates = search_candidate_products(db, intent, adult_verified=adult_verified, limit=60)
+
+    if not local_candidates and intent.get("commodity"):
+        fallback_intent = dict(intent)
+        fallback_intent["search_tokens"] = [intent["commodity"]]
+        local_candidates = search_candidate_products(db, fallback_intent, adult_verified=adult_verified, limit=60)
+        intent = fallback_intent
+
+    selected = select_three_products(local_candidates, intent)
+
+    if not selected:
+        live_candidates = _search_live_fallback(intent, adult_verified=adult_verified)
+        if live_candidates:
+            selected = select_three_products(live_candidates, intent)
+
+    return build_recommendation_text(selected, openid, intent, source_label="dialog_text_fallback")
+

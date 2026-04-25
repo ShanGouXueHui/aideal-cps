@@ -167,10 +167,10 @@ def route(
     if msg_type == "event" and event == "CLICK" and event_key == "今日推荐":
         db = SessionLocal()
         try:
-            articles = _get_today_news_articles(db, to_user)
+            articles = _get_today_news_articles(db, from_user)
             fallback_text = ""
             if not articles:
-                fallback_text = _get_today_text(db, to_user)
+                fallback_text = _get_today_text(db, from_user)
         finally:
             db.close()
 
@@ -195,8 +195,8 @@ def route(
     if msg_type == "event" and event == "CLICK" and event_key == "找商品":
         db = SessionLocal()
         try:
-            articles = _get_find_entry_news_articles(db, to_user)
-            text = "" if articles else _get_find_entry_text(db, to_user)
+            articles = _get_find_entry_news_articles(db, from_user)
+            text = "" if articles else _get_find_entry_text(db, from_user)
         finally:
             db.close()
 
@@ -215,7 +215,7 @@ def route(
     if msg_type == "event" and event == "CLICK" and event_key == "合伙人中心":
         db = SessionLocal()
         try:
-            text = _get_partner_center_text(db, to_user)
+            text = _get_partner_center_text(db, from_user)
         finally:
             db.close()
 
@@ -226,8 +226,8 @@ def route(
     if msg_type == "text":
         db = SessionLocal()
         try:
-            articles = _get_dialog_news_articles(db, to_user, content)
-            text = "" if articles else _get_dialog_text(db, to_user, content, msg_type)
+            articles = _get_dialog_news_articles(db, from_user, content)
+            text = "" if articles else _get_dialog_text(db, from_user, content, msg_type)
         finally:
             db.close()
 
