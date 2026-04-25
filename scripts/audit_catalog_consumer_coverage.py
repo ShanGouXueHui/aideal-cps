@@ -41,6 +41,16 @@ def _match_any(text: str, keys: list[str]) -> bool:
     return any(k and k.lower() in text for k in keys)
 
 
+STRICT_SOURCE_ONLY_DIMS = {
+    "用途_吃喝",
+    "用途_party装饰",
+    "用途_cosplay_安全受控",
+    "用途_实用工具",
+    "用途_学习投资",
+    "用途_数码小件",
+}
+
+
 DIMENSIONS = {
     "人群_男性": ["男士洗面奶", "男士洗发水", "男士沐浴露", "剃须刀", "剃须泡沫", "男士洁面", "刮胡刀"],
     "人群_女性": ["女士洗面奶", "护手霜", "润唇膏", "身体乳", "防晒霜", "卫生巾", "女性护理"],
@@ -83,7 +93,11 @@ def main() -> None:
             full = _haystack(p)
             # 先用 ai_tags 里的关键词来源匹配；不足时再用标题/类目/店铺补充
             for dim, keys in DIMENSIONS.items():
-                if _match_any(src, keys) or _match_any(full, keys):
+                if dim in STRICT_SOURCE_ONLY_DIMS:
+                    matched = _match_any(src, keys)
+                else:
+                    matched = _match_any(src, keys) or _match_any(full, keys)
+                if matched:
                     coverage[dim].append(p)
 
         result = {
