@@ -122,6 +122,43 @@ def _specialization_penalty(item: Any, intent: dict[str, Any]) -> Decimal:
     return penalty
 
 
+GENERIC_COMMODITY_SPECIALIZATION_BLOCKS: dict[str, list[str]] = {
+    # 泛“洗衣液”请求只优先普通洗衣液；用户明确说内衣/宝宝/儿童/宠物/厨房时才放开细分品类。
+    "洗衣液": ["内衣", "内裤", "婴儿", "宝宝", "儿童", "宠物", "猫", "狗", "奶瓶", "厨房"],
+    "牙膏": ["婴儿", "宝宝", "儿童", "宠物", "猫", "狗"],
+    "牙刷": ["婴儿", "宝宝", "儿童", "宠物", "猫", "狗"],
+    "洗发水": ["婴儿", "宝宝", "儿童", "宠物", "猫", "狗"],
+    "沐浴露": ["婴儿", "宝宝", "儿童", "宠物", "猫", "狗"],
+    "湿巾": ["湿厕", "婴儿", "宝宝", "儿童", "宠物", "猫", "狗"],
+    "纸巾": ["湿厕", "厨房", "婴儿", "宝宝", "儿童"],
+    "抽纸": ["湿厕", "厨房", "婴儿", "宝宝", "儿童"],
+    "卫生纸": ["湿厕", "厨房", "婴儿", "宝宝", "儿童"],
+}
+
+
+def _blocked_specialization_tokens(intent: dict[str, Any]) -> list[str]:
+    commodity = str(intent.get("commodity") or "").strip().lower()
+    original = str(intent.get("original_text", "") or "").lower()
+    tokens = GENERIC_COMMODITY_SPECIALIZATION_BLOCKS.get(commodity, [])
+    return [token for token in tokens if token not in original]
+
+
+def _is_over_specialized_for_generic_intent(item: Any, intent: dict[str, Any]) -> bool:
+    blocked_tokens = _blocked_specialization_tokens(intent)
+    if not blocked_tokens:
+        return False
+    haystack = _item_haystack(item)
+    return any(token in haystack for token in blocked_tokens)
+
+
+def _filter_generic_specialized_items(items: list[Any], intent: dict[str, Any]) -> list[Any]:
+    if not items:
+        return items
+    filtered = [item for item in items if not _is_over_specialized_for_generic_intent(item, intent)]
+    # 避免极端情况下全部过滤导致无结果；有干净候选时才启用硬过滤。
+    return filtered or items
+
+
 def _preference_score(item: Any, intent: dict[str, Any]) -> Decimal:
     token_hits = Decimal(_token_match_count(item, intent.get("search_tokens", [])))
     sales_volume = _safe_decimal(_get_value(item, "sales_volume", 0) or 0)
@@ -263,7 +300,7 @@ def select_three_products(items: list[Any], intent: dict[str, Any]) -> list[tupl
     if not items:
         return []
 
-    remaining = list(items)
+    remaining = _filter_generic_specialized_items(list(items), intent)
     selected: list[tuple[str, Any]] = []
 
     best_fit = max(remaining, key=lambda p: _preference_score(p, intent))
