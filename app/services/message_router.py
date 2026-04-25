@@ -177,6 +177,22 @@ def route(
     event_key: str = "",
     **kwargs,
 ) -> str:
+    if msg_type == "event" and event == "subscribe":
+        welcome_text = _call_candidates(
+            "app.services.wechat_dialog_service",
+            ["get_welcome_reply"],
+            [
+                ((), {}),
+            ],
+        )
+        welcome_text = str(welcome_text or "").strip()
+        if not welcome_text:
+            welcome_text = (
+                "你好，欢迎来到「智省优选」。\n"
+                "你可以点击「今日推荐」或「找商品」，也可以直接告诉我想买什么。"
+            )
+        return build_text_response(to_user, from_user, welcome_text)  # WELCOME_SUBSCRIBE_GATE
+
     if msg_type == "event" and event == "CLICK" and event_key == "今日推荐":
         db = SessionLocal()
         try:
