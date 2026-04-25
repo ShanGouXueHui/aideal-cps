@@ -105,6 +105,18 @@ def _item_haystack(item: Any) -> str:
     ).lower()
 
 
+def _item_content_haystack(item: Any) -> str:
+    # 用于商品语义匹配：只看标题/类目/标签，不看店铺名。
+    # 店铺名可能包含“内衣旗舰店”等词，不能据此判断商品本身是内衣洗衣液。
+    return " ".join(
+        [
+            str(_get_value(item, "title", "") or ""),
+            str(_get_value(item, "category_name", "") or ""),
+            str(_get_value(item, "ai_tags", "") or ""),
+        ]
+    ).lower()
+
+
 def _specialization_penalty(item: Any, intent: dict[str, Any]) -> Decimal:
     original = str(intent.get("original_text", "") or "").lower()
     haystack = _item_haystack(item)
@@ -134,6 +146,104 @@ GENERIC_COMMODITY_SPECIALIZATION_BLOCKS: dict[str, list[str]] = {
     "抽纸": ["湿厕", "厨房", "婴儿", "宝宝", "儿童"],
     "卫生纸": ["湿厕", "厨房", "婴儿", "宝宝", "儿童"],
 }
+
+
+EXPLICIT_SPECIALTY_TOKENS = [
+    "内衣", "内裤", "婴儿", "宝宝", "儿童", "宠物", "猫", "狗", "奶瓶", "厨房", "湿厕"
+]
+
+DIALOG_BAD_TAIL_BLOCK_KEYWORDS = [
+    "随机", "颜色随机", "香型随机", "新老随机",
+    "盲盒", "盲抽", "试用", "试用装", "体验", "体验装", "尝鲜", "尝鲜装", "小样",
+    "预售", "预链接", "联系客服", "咨询客服", "联系", "团购联系",
+    "定制", "定做", "拍一发", "拍1发",
+    "医用", "药用", "治疗", "处方", "康复", "术后", "诊疗", "检查床", "吸痰", "无菌", "外科", "医院用",
+    "防身", "防狼", "电击", "甩棍",
+    "维修", "上门服务", "安装服务",
+    "流量卡", "电话卡", "办号",
+]
+
+
+def _explicit_specialty_tokens(intent: dict[str, Any]) -> list[str]:
+    original = str(intent.get("original_text", "") or "").lower()
+    return [token for token in EXPLICIT_SPECIALTY_TOKENS if token in original]
+
+
+def _commodity_family_tokens(intent: dict[str, Any]) -> list[str]:
+    commodity = str(intent.get("commodity") or "").strip().lower()
+    tokens = [commodity] if commodity else []
+    tokens.extend([str(x or "").strip().lower() for x in intent.get("search_tokens", []) if str(x or "").strip()])
+
+    family: list[str] = []
+    joined = " ".join(tokens)
+    if "洗衣" in joined:
+        family.extend(["洗衣", "洗衣液", "洗衣凝珠", "清洗液"])
+    if "牙膏" in joined:
+        family.append("牙膏")
+    if "牙刷" in joined:
+        family.append("牙刷")
+    if "洗发" in joined:
+        family.extend(["洗发", "洗发水"])
+    if "沐浴" in joined:
+        family.extend(["沐浴", "沐浴露"])
+    if "湿巾" in joined:
+        family.extend(["湿巾", "湿厕纸"])
+    if "纸巾" in joined or "抽纸" in joined or "卫生纸" in joined:
+        family.extend(["纸巾", "抽纸", "卫生纸"])
+
+    family.extend(tokens)
+    return list(dict.fromkeys([x for x in family if x]))
+
+
+def _matches_explicit_specialty_and_commodity(item: Any, intent: dict[str, Any]) -> bool:
+    explicit_tokens = _explicit_specialty_tokens(intent)
+    if not explicit_tokens:
+        return False
+
+    content = _item_content_haystack(item)
+    has_specialty = any(token in content for token in explicit_tokens)
+    if not has_specialty:
+        return False
+
+    family_tokens = _commodity_family_tokens(intent)
+    if not family_tokens:
+        return True
+    return any(token in content for token in family_tokens)
+
+
+def _specialty_preference_bonus(item: Any, intent: dict[str, Any]) -> Decimal:
+    explicit_tokens = _explicit_specialty_tokens(intent)
+    if not explicit_tokens:
+        return Decimal("0")
+
+    if _matches_explicit_specialty_and_commodity(item, intent):
+        return Decimal("12000") * Decimal(len(explicit_tokens))
+
+    # 用户明确说“内衣洗衣液”等细分需求时，泛品类商品和仅店铺名命中的商品都不能靠销量抢第一。
+    return Decimal("-6000")
+
+
+def _filter_explicit_specialty_items(items: list[Any], intent: dict[str, Any]) -> list[Any]:
+    explicit_tokens = _explicit_specialty_tokens(intent)
+    if not explicit_tokens or not items:
+        return items
+
+    narrowed = [item for item in items if _matches_explicit_specialty_and_commodity(item, intent)]
+    # 有明确细分候选时硬收窄；没有时回退，避免无结果。
+    return narrowed or items
+
+
+def _is_dialog_bad_tail_item(item: Any) -> bool:
+    haystack = _item_haystack(item)
+    return any(token.lower() in haystack for token in DIALOG_BAD_TAIL_BLOCK_KEYWORDS)
+
+
+def _filter_dialog_bad_tail_items(items: list[Any]) -> list[Any]:
+    if not items:
+        return items
+    filtered = [item for item in items if not _is_dialog_bad_tail_item(item)]
+    # 避免极端情况下无结果；只要有干净候选，就启用过滤。
+    return filtered or items
 
 
 def _blocked_specialization_tokens(intent: dict[str, Any]) -> list[str]:
@@ -183,6 +293,7 @@ def _preference_score(item: Any, intent: dict[str, Any]) -> Decimal:
     if intent.get("wants_self_operated") and str(_get_value(item, "owner", "") or "") == "g":
         score += Decimal("12")
 
+    score += _specialty_preference_bonus(item, intent)
     score -= _specialization_penalty(item, intent)
     return score
 
@@ -301,6 +412,8 @@ def select_three_products(items: list[Any], intent: dict[str, Any]) -> list[tupl
         return []
 
     remaining = _filter_generic_specialized_items(list(items), intent)
+    remaining = _filter_explicit_specialty_items(remaining, intent)
+    remaining = _filter_dialog_bad_tail_items(remaining)
     selected: list[tuple[str, Any]] = []
 
     best_fit = max(remaining, key=lambda p: _preference_score(p, intent))
