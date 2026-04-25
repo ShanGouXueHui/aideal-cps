@@ -64,6 +64,7 @@ def post_chat_completion(
     max_tokens: int = 400,
     timeout: int = 24,
     response_format: dict[str, Any] | None = None,
+    extra_payload: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     payload: dict[str, Any] = {
         "model": model,
@@ -74,6 +75,15 @@ def post_chat_completion(
     }
     if response_format:
         payload["response_format"] = response_format
+
+    if isinstance(extra_payload, dict) and extra_payload:
+        # FREE_LLM_EXTRA_PAYLOAD_GATE
+        # Provider-specific non-secret controls, e.g. OpenRouter reasoning/thinking.
+        # Never allow caller to override routing-critical fields.
+        for key, value in extra_payload.items():
+            if key in {"model", "messages", "stream"}:
+                continue
+            payload[key] = value
 
     body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
     url = _join_url(str(provider.get("base_url", "")), "/chat/completions")

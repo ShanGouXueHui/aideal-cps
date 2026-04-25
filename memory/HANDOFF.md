@@ -657,3 +657,9 @@
 - 解决上一轮问题：`get_product_request_text_reply()` 已新增但未真正挂入 message_router，导致“内衣洗衣液”仍回落到通用兜底文案。
 - 当前门禁：泛品类“洗衣液”返回 news 图文卡片且链接使用用户 openid；显式细分“内衣洗衣液”无干净候选时返回明确 text notice，不静默退回普通洗衣液。
 
+## 2026-04-25 补充：免费LLM后台 thinking 模式
+- 免费LLM路由新增 `extra_payload` 能力，可向支持的 provider 注入非密钥控制参数。
+- `catalog_whitelist_review` 后台任务已启用 OpenRouter `reasoning`：`effort=high`、`exclude=true`。
+- 前台微信用户对话默认不启用 thinking，避免响应时延不可控。
+- 若 OpenRouter thinking 模型失败，沿用原有路由自动切换机制，用户无感回退到其他可用免费模型。
+

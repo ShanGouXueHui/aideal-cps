@@ -93,6 +93,37 @@ def _routes_for_task(task: str, *, allow_premium: bool = False) -> list[dict[str
     return rows
 
 
+def _thinking_extra_payload(
+    *,
+    task: str,
+    provider_name: str,
+    model: str,
+    cfg: dict[str, Any],
+) -> dict[str, Any]:
+    thinking = cfg.get("thinking") if isinstance(cfg.get("thinking"), dict) else {}
+    if not thinking or not thinking.get("enabled"):
+        return {}
+
+    providers = thinking.get("providers")
+    if isinstance(providers, list) and providers:
+        allowed = {str(x).strip() for x in providers if str(x).strip()}
+        if provider_name not in allowed:
+            return {}
+
+    # Current safe implementation: only OpenRouter gets the standardized reasoning object.
+    # Other OpenAI-compatible providers often have provider-specific switches; keep them off
+    # until individually verified, otherwise one unsupported parameter can degrade fallback quality.
+    if provider_name != "openrouter":
+        return {}
+
+    reasoning = thinking.get("reasoning")
+    if not isinstance(reasoning, dict) or not reasoning:
+        reasoning = {"effort": str(thinking.get("effort") or "medium"), "exclude": True}
+
+    payload = {"reasoning": dict(reasoning)}
+    return payload  # FREE_LLM_THINKING_PAYLOAD_GATE
+
+
 def complete_free_llm(
     *,
     task: str,
@@ -117,13 +148,22 @@ def complete_free_llm(
 
     # JSON 任务优先使用已探活证明 json_ok 的模型，避免先打到“能回复但不稳定 JSON”的模型。
     if require_json:
-        def _route_sort_key(route: dict[str, Any]) -> tuple[int, float]:
+        thinking_cfg = cfg.get("thinking") if isinstance(cfg.get("thinking"), dict) else {}
+        thinking_provider_set = set()
+        if thinking_cfg.get("enabled") and isinstance(thinking_cfg.get("providers"), list):
+            thinking_provider_set = {str(x).strip() for x in thinking_cfg.get("providers") if str(x).strip()}
+
+        def _route_sort_key(route: dict[str, Any]) -> tuple[int, int, float]:
             json_rank = 0 if route.get("json_ok") else 1
+            provider_name_for_sort = str(route.get("provider") or "")
+            # 后台 thinking 任务：在 json_ok 的前提下，优先试支持 thinking 的 provider；
+            # 如果失败，原有自动切换机制会继续打下一个模型。
+            thinking_rank = 0 if provider_name_for_sort in thinking_provider_set and route.get("json_ok") else 1
             try:
                 score = float(route.get("score") or 0)
             except Exception:
                 score = 0.0
-            return (json_rank, -score)
+            return (json_rank, thinking_rank, -score)
 
         routes = sorted(routes, key=_route_sort_key)
 
@@ -134,6 +174,12 @@ def complete_free_llm(
         if not provider or not model:
             continue
         try:
+            extra_payload = _thinking_extra_payload(
+                task=task,
+                provider_name=provider_name,
+                model=model,
+                cfg=cfg,
+            )
             response = post_chat_completion(
                 provider,
                 model=model,
@@ -142,6 +188,7 @@ def complete_free_llm(
                 max_tokens=max_tokens,
                 timeout=28,
                 response_format={"type": "json_object"} if require_json else None,
+                extra_payload=extra_payload,
             )
             text = extract_text(response)
             if require_json and _extract_json(text) is None:
@@ -153,6 +200,7 @@ def complete_free_llm(
                 "text": text,
                 "latency_ms": response.get("_latency_ms"),
                 "cost_tier": route.get("cost_tier"),
+                "thinking_enabled": bool(extra_payload),
             }
             _append_usage({
                 "ts": datetime.now(timezone.utc).isoformat(),
@@ -162,6 +210,7 @@ def complete_free_llm(
                 "model": model,
                 "latency_ms": response.get("_latency_ms"),
                 "cost_tier": route.get("cost_tier"),
+                "thinking_enabled": bool(extra_payload),
             })
             return result
         except Exception as exc:
@@ -173,6 +222,7 @@ def complete_free_llm(
                 "provider": provider_name,
                 "model": model,
                 "error": str(exc)[:300],
+                "thinking_enabled": bool(extra_payload),
             })
             continue
 

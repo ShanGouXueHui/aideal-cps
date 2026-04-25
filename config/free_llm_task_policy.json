@@ -6,14 +6,39 @@
       "require_json": true,
       "max_tokens": 900,
       "temperature": 0.0,
-      "preferred_providers": ["openrouter", "gemini", "zhipu", "bailian", "huggingface", "nvidia"],
-      "premium_fallback_enabled": false
+      "preferred_providers": [
+        "openrouter",
+        "gemini",
+        "zhipu",
+        "bailian",
+        "huggingface",
+        "nvidia"
+      ],
+      "premium_fallback_enabled": false,
+      "thinking": {
+        "enabled": true,
+        "providers": [
+          "openrouter"
+        ],
+        "reasoning": {
+          "effort": "high",
+          "exclude": true
+        },
+        "note": "后台白名单/商品池质检可使用 OpenRouter reasoning/thinking；exclude=true 避免返回推理内容。前台用户对话默认不开 thinking，控制时延。"
+      }
     },
     "product_intent_parse": {
       "require_json": true,
       "max_tokens": 700,
       "temperature": 0.0,
-      "preferred_providers": ["gemini", "openrouter", "zhipu", "bailian", "huggingface", "nvidia"],
+      "preferred_providers": [
+        "gemini",
+        "openrouter",
+        "zhipu",
+        "bailian",
+        "huggingface",
+        "nvidia"
+      ],
       "premium_fallback_enabled": true,
       "premium_min_gmv_rmb": 1000
     },
@@ -21,7 +46,14 @@
       "require_json": true,
       "max_tokens": 1100,
       "temperature": 0.1,
-      "preferred_providers": ["openrouter", "gemini", "zhipu", "bailian", "huggingface", "nvidia"],
+      "preferred_providers": [
+        "openrouter",
+        "gemini",
+        "zhipu",
+        "bailian",
+        "huggingface",
+        "nvidia"
+      ],
       "premium_fallback_enabled": true,
       "premium_min_gmv_rmb": 1000
     },
@@ -29,14 +61,28 @@
       "require_json": false,
       "max_tokens": 500,
       "temperature": 0.3,
-      "preferred_providers": ["gemini", "openrouter", "zhipu", "bailian", "huggingface", "nvidia"],
+      "preferred_providers": [
+        "gemini",
+        "openrouter",
+        "zhipu",
+        "bailian",
+        "huggingface",
+        "nvidia"
+      ],
       "premium_fallback_enabled": false
     },
     "fallback_chat": {
       "require_json": false,
       "max_tokens": 600,
       "temperature": 0.2,
-      "preferred_providers": ["gemini", "openrouter", "zhipu", "bailian", "huggingface", "nvidia"],
+      "preferred_providers": [
+        "gemini",
+        "openrouter",
+        "zhipu",
+        "bailian",
+        "huggingface",
+        "nvidia"
+      ],
       "premium_fallback_enabled": false
     }
   }
