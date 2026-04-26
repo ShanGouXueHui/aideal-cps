@@ -117,5 +117,37 @@
     "reason": "推荐理由",
     "more_like_this": "更多同类产品"
   },
-  "same_user_dedup_days": 0
+  "same_user_dedup_days": 0,
+  "today_batch_h5": {
+    "title": "首批今日优选好物推荐",
+    "footer_note": "本 AI 助手是京东导购产品，主要帮助你做更值、更省、更省心的筛选和推荐。下单在京东官网完成，享受京东正常客户服务。",
+    "fallback_product_title": "优选商品",
+    "labels": {
+      "price": "价格优势",
+      "price_note": "价格说明",
+      "sales_prefix": "热销",
+      "purchase_price": "优惠价",
+      "jd_official_price": "京东官网价",
+      "saved": "立省",
+      "sales": "购买热度",
+      "comments": "用户评价",
+      "good_rate": "好评率",
+      "category": "商品品类",
+      "shop": "店铺信息",
+      "reason": "推荐理由",
+      "buy": "点击我去京东快捷下单",
+      "more": "更多类似商品"
+    },
+    "sections": {
+      "price_note": "先到先得，看得见的优惠；点开京东下单页可看到当前可用券、实时到手价和库存。",
+      "fallback_price": "优惠有时效，建议点开京东下单页查看当前可用券和实时到手价。"
+    },
+    "reason_rules": {
+      "high_discount": "这款的优惠幅度比较明显，属于先点开确认实时券价就能快速判断值不值的商品；不用反复比价，决策成本更低。",
+      "meaningful_saved": "这款当前有明确价差，适合对价格敏感、想把日常消费买得更划算的用户优先看。",
+      "social_proof": "这款已有较高购买热度，说明不是冷门小众入口；对不想花太多时间筛选的用户，更适合作为优先比较项。",
+      "shop_trust": "这款店铺信息相对清晰，适合希望少踩坑、省心下单的用户优先查看。",
+      "balanced": "这款在价格、热度和店铺信息上相对均衡，适合先作为本轮对比候选；觉得不合适可以继续看更多类似商品。"
+    }
+  }
 }

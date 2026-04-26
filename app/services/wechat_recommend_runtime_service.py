@@ -1101,14 +1101,13 @@ def render_recommend_batch_h5(
     slot: str = "",
     wechat_openid: str = "",
 ) -> str:
-    from app.services.wechat_find_product_entry_config_service import load_find_product_entry_config
+    batch_cfg = _cfg().get("today_batch_h5")
+    if not isinstance(batch_cfg, dict):
+        batch_cfg = {}
 
-    cfg = load_find_product_entry_config()
-    batch_cfg = cfg.get("h5_batch") if isinstance(cfg.get("h5_batch"), dict) else {}
     labels = batch_cfg.get("labels") if isinstance(batch_cfg.get("labels"), dict) else {}
     sections = batch_cfg.get("sections") if isinstance(batch_cfg.get("sections"), dict) else {}
-    detail_cfg = cfg.get("h5_detail") if isinstance(cfg.get("h5_detail"), dict) else {}
-    empty_cfg = detail_cfg.get("empty") if isinstance(detail_cfg.get("empty"), dict) else {}
+    reason_rules = batch_cfg.get("reason_rules") if isinstance(batch_cfg.get("reason_rules"), dict) else {}
 
     def c(value: object) -> str:
         return html.escape(html.unescape(str(value or "")), quote=True)
@@ -1122,8 +1121,8 @@ def render_recommend_batch_h5(
     def section(key: str) -> str:
         return str(sections.get(key) or "").strip()
 
-    def empty_text(key: str) -> str:
-        return str(empty_cfg.get(key) or "").strip()
+    def rule(key: str) -> str:
+        return str(reason_rules.get(key) or "").strip()
 
     def num_text(value: object) -> str:
         n = _to_int(value)
@@ -1144,6 +1143,45 @@ def render_recommend_batch_h5(
             raw *= 100
         return f"{raw:.1f}%".rstrip("0").rstrip(".")
 
+    def price_line(product: Product) -> tuple[str, str]:
+        purchase = _effective_price(product)
+        basis = _to_float(getattr(product, "price", None))
+        saved = _saved_amount(product)
+        sales = num_text(getattr(product, "sales_volume", None))
+
+        main_parts: list[str] = []
+        if purchase > 0:
+            main_parts.append(f"{label('purchase_price')}¥{purchase:g}")
+        if basis > 0 and (purchase <= 0 or basis >= purchase):
+            main_parts.append(f"{label('jd_official_price')}¥{basis:g}")
+        if saved > 0:
+            main_parts.append(f"{label('saved')}¥{saved:g}")
+        if sales and label("sales_prefix"):
+            main_parts.append(f"{label('sales_prefix')}{sales}")
+
+        if main_parts:
+            return "｜".join(main_parts), section("price_note")
+        return section("fallback_price"), section("price_note")
+
+    def reason_text(product: Product) -> str:
+        saved = _saved_amount(product)
+        basis = _to_float(getattr(product, "price", None))
+        purchase = _effective_price(product)
+        saved_rate = (saved / basis) if basis > 0 and saved > 0 else 0.0
+        sales = _to_int(getattr(product, "sales_volume", None))
+        comments = _to_int(getattr(product, "comment_count", None))
+        shop = str(getattr(product, "shop_name", "") or "")
+
+        if saved >= 20 or saved_rate >= 0.25:
+            return rule("high_discount")
+        if saved >= 5 and purchase > 0:
+            return rule("meaningful_saved")
+        if sales >= 1000 or comments >= 10000:
+            return rule("social_proof")
+        if "自营" in shop or "旗舰" in shop or "官方" in shop:
+            return rule("shop_trust")
+        return rule("balanced")
+
     product_ids: list[int] = []
     seen: set[int] = set()
     for raw in re.split(r"[,，\s]+", str(ids or "")):
@@ -1156,11 +1194,11 @@ def render_recommend_batch_h5(
             seen.add(pid)
 
     if not product_ids:
-        body = (
-            f'<div class="card"><div class="title">{c(text("empty_title"))}</div>'
-            f'<div class="meta">{c(text("empty_desc"))}</div></div>'
-        )
-        return _html_shell(text("title"), body)
+        return f"""<!doctype html>
+<html lang="zh-CN">
+<head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><title>{c(text("title"))}</title></head>
+<body><h1>{c(text("title"))}</h1></body>
+</html>"""
 
     rows = db.query(Product).filter(Product.id.in_(product_ids), Product.status == "active").all()
     order = {pid: idx for idx, pid in enumerate(product_ids)}
@@ -1172,20 +1210,12 @@ def render_recommend_batch_h5(
         ),
     )
 
-    if not rows:
-        body = (
-            f'<div class="card"><div class="title">{c(text("empty_title"))}</div>'
-            f'<div class="meta">{c(text("empty_desc"))}</div></div>'
-        )
-        return _html_shell(text("title"), body)
-
     scene_val = str(scene or "today_recommend")
     slot_base = _to_int(slot or 0)
 
     def product_card(product: Product, idx: int) -> str:
-        pid = int(getattr(product, "id", 0) or 0)
-        is_focus = pid == int(focus_id or 0)
-        title = c(str(getattr(product, "title", "") or getattr(product, "sku_name", "") or ""))
+        product_title = str(getattr(product, "title", "") or getattr(product, "sku_name", "") or text("fallback_product_title"))
+        title = c(product_title)
         hero = _product_pic_url(product)
         hero_html = f'<img class="product-img" src="{c(hero)}" alt="{title}" />' if hero else ""
 
@@ -1217,40 +1247,35 @@ def render_recommend_batch_h5(
             slot=slot_base + idx,
             wechat_openid=wechat_openid,
         )
-        detail_url = _detail_url(
+        more_url = _more_like_this_url(
             product,
             scene=scene_val,
             slot=slot_base + idx,
             wechat_openid=wechat_openid,
         )
-
-        badge = text("focus_badge") if is_focus else text("normal_badge")
-        reason = _recommend_reason_short(product)
-        match_line = f'{label("match")}：{badge}' if label("match") and badge else badge
+        price_main, price_note = price_line(product)
 
         return f"""
         <div class="card product-card">
           {hero_html}
-          <div class="rank">{c(badge)}</div>
           <div class="title product-title">{title}</div>
-          <div class="match">{c(match_line)}</div>
           <div class="pricebox">
-            <div class="price-main">{c(label("price"))}：{c(_news_value_line(product))}</div>
-            <div class="price-sub">{c(label("price_note"))}：{c(section("price_note"))}</div>
+            <div class="price-main">{c(label("price"))}：{c(price_main)}</div>
+            <div class="price-sub">{c(label("price_note"))}：{c(price_note)}</div>
           </div>
           <div class="grid">{info_html}</div>
           <div class="section-title">{c(label("reason"))}</div>
-          <div class="reason">{c(reason)}</div>
+          <div class="reason">{c(reason_text(product))}</div>
           <div class="card-actions">
             <a class="btn btn-primary" href="{c(buy_url)}">{c(label("buy"))}</a>
-            <a class="btn btn-secondary" href="{c(detail_url)}">{c(label("detail"))}</a>
+            <a class="btn btn-secondary" href="{c(more_url)}">{c(label("more"))}</a>
           </div>
         </div>
         """.strip()
 
     cards = "\n".join(product_card(product, idx) for idx, product in enumerate(rows, 1))
 
-    body = f"""<!doctype html>
+    return f"""<!doctype html>
 <html lang="zh-CN">
 <head>
   <meta charset="utf-8" />
@@ -1258,15 +1283,12 @@ def render_recommend_batch_h5(
   <title>{c(text("title"))}</title>
   <style>
     body{{margin:0;background:#f6f7fb;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;color:#0f172a;}}
-    .wrap{{max-width:760px;margin:0 auto;padding:14px 14px 40px;}}
+    .wrap{{max-width:760px;margin:0 auto;padding:16px 14px 40px;}}
+    .page-title{{font-size:23px;font-weight:900;line-height:1.35;margin:2px 2px 16px;letter-spacing:-.2px;}}
     .card{{background:#fff;border-radius:20px;padding:16px;box-shadow:0 8px 28px rgba(15,23,42,.07);margin-bottom:14px;}}
-    .eyebrow{{font-size:12px;color:#64748b;font-weight:850;margin-bottom:6px;}}
     .title{{font-size:21px;font-weight:850;line-height:1.42;margin:0;letter-spacing:-.2px;}}
-    .meta{{margin-top:8px;color:#64748b;line-height:1.75;font-size:14px;}}
     .product-img{{width:100%;border-radius:18px;background:#fff;object-fit:cover;display:block;margin-bottom:12px;}}
-    .rank{{display:inline-flex;margin-bottom:8px;padding:5px 9px;border-radius:999px;background:#eef2ff;color:#3730a3;font-size:12px;font-weight:850;}}
     .product-title{{margin-bottom:10px;}}
-    .match{{background:#f8fafc;border-radius:14px;padding:10px;color:#334155;line-height:1.7;font-size:14px;}}
     .pricebox{{margin-top:12px;padding:14px;border-radius:16px;background:#fff7ed;color:#9a3412;}}
     .price-main{{font-size:18px;font-weight:900;line-height:1.5;}}
     .price-sub{{margin-top:6px;font-size:13px;color:#9a3412;line-height:1.65;}}
@@ -1281,22 +1303,18 @@ def render_recommend_batch_h5(
     .btn-primary{{background:#0f172a;color:#fff;min-width:168px;}}
     .btn-secondary{{background:#e2e8f0;color:#0f172a;min-width:118px;}}
     .footer{{color:#64748b;line-height:1.75;font-size:13px;}}
-    @media (max-width:420px){{.grid{{grid-template-columns:1fr 1fr;gap:8px;}}.title{{font-size:19px;}}.btn{{font-size:14px;padding:12px 10px;}}}}
+    @media (max-width:420px){{.grid{{grid-template-columns:1fr 1fr;gap:8px;}}.title{{font-size:19px;}}.page-title{{font-size:22px;}}.btn{{font-size:14px;padding:12px 10px;}}}}
   </style>
 </head>
 <body>
   <div class="wrap">
-    <div class="card">
-      <div class="eyebrow">{c(text("eyebrow"))}</div>
-      <div class="title">{c(text("title"))}</div>
-      <div class="meta">{c(text("subtitle"))}</div>
-    </div>
+    <h1 class="page-title">{c(text("title"))}</h1>
     {cards}
-    <div class="card footer">{c(section("footer_note"))}</div>
+    <div class="card footer">{c(text("footer_note"))}</div>
   </div>
 </body>
 </html>"""
-    return body
+
 
 def render_more_like_this_h5(
     db: Session,
