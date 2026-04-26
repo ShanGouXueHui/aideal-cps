@@ -1426,3 +1426,31 @@ P3 当前新增：
 7. 新增 `/users/test-init` 兼容接口，避免 H5 用户初始化提示失败。
 8. 链路继续坚持 no-api 路径：`/h5/recommend/...`、`/promotion/redirect...`。
 <!-- END 2026-04-26 找商品文本承接配置化修复 -->
+
+<!-- START 2026-04-26 公网无 api 路由模块固化 -->
+## 2026-04-26 公网无 `/api` 路由模块固化
+
+本次确认并固化微信/H5公网路由策略：
+
+1. 用户可见链接统一不带 `/api`：
+   - `/users/test-init`
+   - `/h5/recommend/{product_id}`
+   - `/h5/recommend/more-like-this`
+   - `/promotion/redirect`
+
+2. 生产 Nginx 已拆出独立路由模块：
+   - 生产文件：`/etc/nginx/snippets/aideal_public_backend_routes.conf`
+   - 仓库模板：`ops/nginx/aideal_public_backend_routes.conf`
+
+3. 该模块必须 include 在静态站点 `/h5/` 和 `/` 路由之前，否则 `/h5/recommend/...`、`/promotion/redirect`、`/users/test-init` 会被静态站点吞掉。
+
+4. 已验证公网结果：
+   - `POST /users/test-init?...` 返回 `200 application/json`
+   - `GET /h5/recommend/2156?...` 返回 `200 text/html`
+   - `GET /promotion/redirect?...` 返回 `302` 到京东短链 `u.jd.com`
+
+5. 后续原则：
+   - 路由层作为独立基础设施模块管理。
+   - 后续业务代码修改不得随意覆盖 Nginx 路由模块。
+   - 如再次出现 H5/京东跳转错误，先检查 Nginx include 与 location 优先级，不要先改业务代码。
+<!-- END 2026-04-26 公网无 api 路由模块固化 -->
