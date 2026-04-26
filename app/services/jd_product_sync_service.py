@@ -97,6 +97,33 @@ def _pick_good_comments_share(item: dict[str, Any]) -> float | None:
     return None
 
 
+
+
+def _price_snapshot_from_price_info(price_info: dict[str, Any]) -> dict[str, Any]:
+    """Build product price snapshot from JD goods priceInfo during catalog sync."""
+    try:
+        official_price = Decimal(str(price_info.get("price") or 0))
+    except Exception:
+        official_price = Decimal("0")
+
+    try:
+        coupon_price = Decimal(str(price_info.get("lowestCouponPrice") or price_info.get("lowestPrice") or 0))
+    except Exception:
+        coupon_price = Decimal("0")
+
+    purchase_price = coupon_price if coupon_price > 0 else official_price
+    basis_price = official_price if official_price > 0 else Decimal("0")
+    has_snapshot = purchase_price > 0 or basis_price > 0
+    exact_discount = purchase_price > 0 and basis_price > purchase_price
+
+    return {
+        "purchase_price": purchase_price if purchase_price > 0 else None,
+        "basis_price": basis_price if basis_price > 0 else None,
+        "basis_price_type": 1 if basis_price > 0 else None,
+        "is_exact_discount": bool(exact_discount),
+        "price_verified_at": datetime.now(timezone.utc) if has_snapshot else None,
+    }
+
 def _extract_sku_id_from_material_url(material_url: str | None) -> str | None:
     text = str(material_url or "")
     m = re.search(r"/product/(\d+)\.html", text)
@@ -140,6 +167,8 @@ def normalize_jd_item(
     jd_sku_id = _pick_jd_sku_id(item, material_url)
     merchant_snapshot = merchant_snapshot or {}
 
+    price_snapshot = _price_snapshot_from_price_info(price_info)
+
     payload = {
         "jd_sku_id": jd_sku_id,
         "title": item.get("skuName") or "unknown",
@@ -170,6 +199,7 @@ def normalize_jd_item(
         "status": "active",
         "last_sync_at": datetime.now(timezone.utc),
     }
+    payload.update(price_snapshot)
     return enrich_product_payload_with_compliance(
         payload,
         forbid_types=item.get("forbidTypes") or [],

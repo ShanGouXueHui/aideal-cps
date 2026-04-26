@@ -412,6 +412,16 @@ def run_nightly_catalog_refresh(db: Session) -> dict[str, Any]:
             "error": str(exc),
         }
 
+    try:
+        from app.services.jd_price_freshness_service import refresh_stale_recommendation_pool_prices
+
+        price_freshness_result = refresh_stale_recommendation_pool_prices(db)
+    except Exception as exc:
+        price_freshness_result = {
+            "status": "failed",
+            "error": repr(exc),
+        }
+
     return {
         "elite_refresh": elite_result,
         "keyword_refresh": keyword_result,
@@ -419,4 +429,5 @@ def run_nightly_catalog_refresh(db: Session) -> dict[str, Any]:
         "purge_cleanup": purge_result,
         "free_llm_refresh": free_llm_refresh_result,
         "proactive_whitelist_refresh": whitelist_result,
+        "price_freshness_refresh": price_freshness_result,
     }

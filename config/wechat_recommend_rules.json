@@ -152,5 +152,8 @@
       "shop_trust": "这款店铺信息相对清晰，适合希望少踩坑、省心下单的用户优先查看。",
       "balanced": "这款在价格、热度和店铺信息上相对均衡，适合先作为本轮对比候选；觉得不合适可以继续看更多类似商品。"
     }
+  },
+  "price_display": {
+    "prefer_verified_in_recommendation": true
   }
 }
