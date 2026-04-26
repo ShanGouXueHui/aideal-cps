@@ -98,6 +98,17 @@ async def recommend_detail_page(
         product = get_product_by_id(db, int(product_id))
         if not product:
             return HTMLResponse("<h3>商品不存在</h3>", status_code=404)
+
+        # First-read price freshness cache: refresh JD price only when stale.
+        try:
+            from app.services.jd_price_freshness_service import refresh_product_price_if_stale
+
+            product = refresh_product_price_if_stale(db, product, trigger="h5_detail") or product
+            db.commit()
+            db.refresh(product)
+        except Exception:
+            db.rollback()
+
         return HTMLResponse(
             render_product_h5(
                 product,

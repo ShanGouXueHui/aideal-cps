@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "enabled": true,
+  "h5_detail_refresh_interval_hours": 72,
+  "background_refresh_interval_hours": 72,
+  "failure_retry_interval_hours": 24,
+  "throttle_on_failure": true,
+  "background_limit_per_run": 50,
+  "notes": [
+    "H5商品详情首次访问或价格校验过期时，才尝试读取京东实时价。",
+    "默认同一商品72小时内不重复调用京东实时价接口，避免浪费调用次数。",
+    "如果京东实时价接口未返回有效对照价，也记录检查时间，避免每次打开都重复调用。",
+    "只有拿到严格校验价时才展示优惠价、京东官网价、立省等强价格口径。"
+  ]
+}

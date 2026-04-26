@@ -20,6 +20,13 @@ class Product(Base):
     shop_id = Column(String(64), nullable=True, index=True)
     price = Column(Numeric(12, 2), default=0.00)
     coupon_price = Column(Numeric(12, 2), default=0.00)
+
+    # JD exact price freshness fields. These columns already exist in production DB.
+    purchase_price = Column(Numeric(12, 2), nullable=True)
+    basis_price = Column(Numeric(12, 2), nullable=True)
+    basis_price_type = Column(Integer, nullable=True)
+    price_verified_at = Column(DateTime(timezone=True), nullable=True)
+    is_exact_discount = Column(Boolean, nullable=True)
     commission_rate = Column(Float, default=0.0)
     estimated_commission = Column(Numeric(12, 2), default=0.00)
     sales_volume = Column(Integer, default=0)

@@ -941,8 +941,35 @@ def render_product_h5(product: Product, *, scene: str = "", slot: str = "", wech
     price_display = f"¥{price_value:g}" if price_value > 0 else empty_text("unknown")
     saved_display = f"¥{saved_value:g}" if saved_value > 0 else empty_text("no_saved")
 
-    value_html = c(_news_value_line(product))
-    price_line_html = c(_format_price_line(product))
+    exact_purchase = _to_float(getattr(product, "purchase_price", None))
+    exact_basis = _to_float(getattr(product, "basis_price", None))
+    has_strict_verified_price = (
+        bool(getattr(product, "is_exact_discount", False))
+        and exact_purchase > 0
+        and exact_basis > exact_purchase
+    )
+
+    sales_text = sales or ""
+    if has_strict_verified_price:
+        exact_saved = exact_basis - exact_purchase
+        price_main_raw = f"省¥{exact_saved:g}" + (f"｜热销{sales_text}" if sales_text else "")
+        price_sub_raw = (
+            f"{label('estimated_price')}：优惠价￥{exact_purchase:.2f}｜京东官网价￥{exact_basis:.2f}｜立省￥{exact_saved:.2f}。"
+            + text("price_verified_note")
+        )
+    else:
+        if sales_text:
+            template = text("price_unverified_main_template")
+            try:
+                price_main_raw = template.format(sales_text=sales_text)
+            except Exception:
+                price_main_raw = sales_text
+        else:
+            price_main_raw = text("price_unverified_main_no_sales")
+        price_sub_raw = text("price_unverified_subtitle")
+
+    value_html = c(price_main_raw)
+    price_line_html = c(price_sub_raw)
     reason_html = c(_recommend_reason_short(product))
 
     image_candidates = [
@@ -1036,7 +1063,7 @@ def render_product_h5(product: Product, *, scene: str = "", slot: str = "", wech
       <div class="badges">{badges_html}</div>
       <div class="pricebox">
         <div class="price-main">{c(label("price_advantage"))}：{value_html}</div>
-        <div class="price-sub">{c(label("estimated_price"))}：{price_line_html}。{c(text("price_note"))}</div>
+        <div class="price-sub">{price_line_html}</div>
       </div>
     </div>
 
