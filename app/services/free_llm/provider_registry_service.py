@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime, timezone
 import json
 import os
 from pathlib import Path
@@ -74,6 +75,73 @@ def load_task_policy() -> dict[str, Any]:
 
 
 
+
+def _parse_datetime_utc(value: str) -> datetime | None:
+    raw = str(value or "").strip()
+    if not raw:
+        return None
+    try:
+        if raw.endswith("Z"):
+            raw = raw[:-1] + "+00:00"
+        dt = datetime.fromisoformat(raw)
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt.astimezone(timezone.utc)
+    except Exception:
+        return None
+
+
+def _resolve_datetime_setting(provider: dict[str, Any], direct_key: str, env_key: str, alias_key: str = "") -> datetime | None:
+    envs = env_map()
+    candidates: list[str] = []
+
+    direct_val = provider.get(direct_key)
+    if direct_val:
+        candidates.append(str(direct_val))
+
+    env_name = str(provider.get(env_key) or "").strip()
+    if env_name:
+        candidates.append(str(envs.get(env_name, "") or ""))
+
+    aliases = provider.get(alias_key) if alias_key else None
+    if isinstance(aliases, list):
+        for item in aliases:
+            key = str(item or "").strip()
+            if key:
+                candidates.append(str(envs.get(key, "") or ""))
+
+    for item in candidates:
+        dt = _parse_datetime_utc(item)
+        if dt:
+            return dt
+    return None
+
+
+def _provider_temporarily_available(provider: dict[str, Any]) -> bool:
+    # FREE_LLM_PROVIDER_AVAILABILITY_GATE
+    now = datetime.now(timezone.utc)
+
+    disabled_until = _resolve_datetime_setting(
+        provider,
+        "disabled_until",
+        "disabled_until_env",
+        "disabled_until_alias_envs",
+    )
+    if disabled_until and now < disabled_until:
+        return False
+
+    trial_expires_at = _resolve_datetime_setting(
+        provider,
+        "trial_expires_at",
+        "trial_expires_at_env",
+        "trial_expires_at_alias_envs",
+    )
+    if trial_expires_at and now >= trial_expires_at:
+        return False
+
+    return True
+
+
 def _with_env_overrides(provider: dict[str, Any]) -> dict[str, Any]:
     item = dict(provider)
     base_url_env = str(item.get("base_url_env") or "").strip()
@@ -99,6 +167,8 @@ def enabled_providers(*, include_premium: bool = False) -> list[dict[str, Any]]:
             continue
         if provider.get("premium_only") and not include_premium:
             continue
+        if not _provider_temporarily_available(provider):
+            continue  # FREE_LLM_PROVIDER_AVAILABILITY_GATE_CALL
         if not get_secret(str(provider.get("env_key", "")), provider.get("env_aliases") or []):
             continue
         out.append(_with_env_overrides(provider))

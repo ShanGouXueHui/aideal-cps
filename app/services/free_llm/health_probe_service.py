@@ -4,6 +4,7 @@ from collections import defaultdict
 from datetime import datetime, timezone
 import json
 import os
+import re
 import time
 from typing import Any
 
@@ -31,17 +32,38 @@ def _to_int(value: Any, default: int = 0) -> int:
 
 
 def _looks_json(text: str) -> bool:
-    stripped = str(text or "").strip()
-    if not stripped:
+    raw = str(text or "").strip()
+    if not raw:
         return False
-    if "{" in stripped and "}" in stripped:
-        return True
-    if "[" in stripped and "]" in stripped:
-        return True
+
+    candidates = [raw]
+
+    fence = re.search(r"```(?:json)?\\s*(.*?)```", raw, flags=re.S | re.I)
+    if fence:
+        candidates.append(fence.group(1).strip())
+
+    start = raw.find("{")
+    end = raw.rfind("}")
+    if start >= 0 and end > start:
+        candidates.append(raw[start:end + 1])
+
+    start = raw.find("[")
+    end = raw.rfind("]")
+    if start >= 0 and end > start:
+        candidates.append(raw[start:end + 1])
+
+    for item in candidates:
+        try:
+            parsed = json.loads(item)
+            return isinstance(parsed, (dict, list))
+        except Exception:
+            continue
     return False
 
 
 def _task_score(task_cfg: dict[str, Any], candidate: dict[str, Any], health: dict[str, Any]) -> float:
+    if task_cfg.get("require_json") and not health.get("json_ok"):
+        return -9999.0  # FREE_LLM_JSON_TASK_SCORE_GATE
     score = float(candidate.get("score", 0) or 0)
 
     if health.get("status") == "success":
@@ -261,9 +283,12 @@ def refresh_free_llm_health(
 
     for task_name, task_cfg in tasks.items():
         task_routes: list[dict[str, Any]] = []
+        require_json = bool(task_cfg.get("require_json")) if isinstance(task_cfg, dict) else False
         for result in probe_results:
             if result.get("status") != "success":
                 continue
+            if require_json and not result.get("json_ok"):
+                continue  # FREE_LLM_REQUIRE_JSON_ROUTE_FILTER
 
             candidate = candidate_index.get((str(result.get("provider") or ""), str(result.get("model") or "")), {})
             task_routes.append(

@@ -50,7 +50,8 @@
         "meta/llama-3.1-8b-instruct",
         "mistralai/mistral-7b-instruct-v0.3",
         "nvidia/llama-3.1-nemotron-nano-8b-v1"
-      ]
+      ],
+      "base_url_env": "FREE_POOL_NVIDIA_BASE_URL"
     },
     {
       "name": "huggingface",
@@ -71,7 +72,8 @@
         "Qwen/Qwen2.5-7B-Instruct:fastest",
         "meta-llama/Llama-3.1-8B-Instruct:fastest",
         "deepseek-ai/DeepSeek-R1-Distill-Qwen-32B:fastest"
-      ]
+      ],
+      "base_url_env": "FREE_POOL_HUGGINGFACE_BASE_URL"
     },
     {
       "name": "gemini",
@@ -91,7 +93,8 @@
         "gemini-2.5-flash",
         "gemini-2.0-flash",
         "gemini-1.5-flash"
-      ]
+      ],
+      "base_url_env": "FREE_POOL_GEMINI_BASE_URL"
     },
     {
       "name": "zhipu",
@@ -110,7 +113,8 @@
       "seed_models": [
         "glm-4-flash",
         "glm-4.5-flash"
-      ]
+      ],
+      "base_url_env": "FREE_POOL_ZHIPU_BASE_URL"
     },
     {
       "name": "bailian",
@@ -129,6 +133,12 @@
       "seed_models": [
         "qwen-turbo",
         "qwen-plus"
+      ],
+      "base_url_env": "FREE_POOL_BAILIAN_BASE_URL",
+      "trial_expires_at_env": "BAILIAN_FREE_TRIAL_EXPIRES_AT",
+      "trial_expires_at_alias_envs": [
+        "ALI_BAILIAN_FREE_TRIAL_EXPIRES_AT",
+        "DASHSCOPE_FREE_TRIAL_EXPIRES_AT"
       ]
     },
     {
@@ -148,7 +158,8 @@
       "seed_models": [
         "hunyuan-lite",
         "hunyuan-standard"
-      ]
+      ],
+      "base_url_env": "FREE_POOL_TENCENT_HUNYUAN_BASE_URL"
     },
     {
       "name": "qwen_premium",
@@ -168,7 +179,8 @@
       "seed_models": [
         "qwen-plus",
         "qwen-max"
-      ]
+      ],
+      "base_url_env": "FREE_POOL_QWEN_PREMIUM_BASE_URL"
     }
   ],
   "health_probe_profiles": {

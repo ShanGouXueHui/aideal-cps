@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 import json
 import re
 from pathlib import Path
@@ -10,11 +10,90 @@ from app.services.free_llm.health_probe_service import load_active_routing, refr
 from app.services.free_llm.http_client_service import post_chat_completion, extract_text
 from app.services.free_llm.provider_registry_service import (
     LOG_DIR,
+    RUN_DIR,
     load_task_policy,
     provider_by_name,
+    write_json,
 )
 
 USAGE_LOG = LOG_DIR / "free_llm_usage.log"
+
+ROUTE_STATE_PATH = RUN_DIR / "free_llm_route_runtime_state.json"
+ROUTE_FAILURE_THRESHOLD = 2
+ROUTE_COOLDOWN_SECONDS = 1800
+
+
+def _route_key(task: str, provider: str, model: str) -> str:
+    return f"{task}::{provider}::{model}"
+
+
+def _load_route_state() -> dict[str, Any]:
+    try:
+        data = json.loads(ROUTE_STATE_PATH.read_text(encoding="utf-8"))
+        return data if isinstance(data, dict) else {}
+    except Exception:
+        return {}
+
+
+def _save_route_state(state: dict[str, Any]) -> None:
+    try:
+        write_json(ROUTE_STATE_PATH, state)
+    except Exception:
+        pass
+
+
+def _parse_state_time(value: Any) -> datetime | None:
+    raw = str(value or "").strip()
+    if not raw:
+        return None
+    try:
+        if raw.endswith("Z"):
+            raw = raw[:-1] + "+00:00"
+        dt = datetime.fromisoformat(raw)
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt.astimezone(timezone.utc)
+    except Exception:
+        return None
+
+
+def _route_is_quarantined(task: str, route: dict[str, Any]) -> bool:
+    # FREE_LLM_RUNTIME_QUARANTINE_GATE
+    provider = str(route.get("provider") or "")
+    model = str(route.get("model") or "")
+    state = _load_route_state()
+    item = state.get(_route_key(task, provider, model))
+    if not isinstance(item, dict):
+        return False
+    disabled_until = _parse_state_time(item.get("disabled_until"))
+    return bool(disabled_until and datetime.now(timezone.utc) < disabled_until)
+
+
+def _record_route_success(task: str, provider: str, model: str) -> None:
+    state = _load_route_state()
+    key = _route_key(task, provider, model)
+    state[key] = {
+        "consecutive_failures": 0,
+        "last_success_at": datetime.now(timezone.utc).isoformat(),
+    }
+    _save_route_state(state)
+
+
+def _record_route_failure(task: str, provider: str, model: str, error: str = "") -> None:
+    state = _load_route_state()
+    key = _route_key(task, provider, model)
+    item = state.get(key)
+    if not isinstance(item, dict):
+        item = {}
+    failures = int(item.get("consecutive_failures") or 0) + 1
+    item["consecutive_failures"] = failures
+    item["last_failure_at"] = datetime.now(timezone.utc).isoformat()
+    item["last_error"] = str(error or "")[:240]
+    if failures >= ROUTE_FAILURE_THRESHOLD:
+        item["disabled_until"] = (datetime.now(timezone.utc) + timedelta(seconds=ROUTE_COOLDOWN_SECONDS)).isoformat()
+    state[key] = item
+    _save_route_state(state)
+
 
 
 def _append_usage(row: dict[str, Any]) -> None:
@@ -90,6 +169,7 @@ def _routes_for_task(task: str, *, allow_premium: bool = False) -> list[dict[str
         ]
         rows = list(rows) + premium
 
+    rows = [r for r in rows if not _route_is_quarantined(task, r)]  # FREE_LLM_RUNTIME_QUARANTINE_ROUTE_FILTER
     return rows
 
 
@@ -173,6 +253,7 @@ def complete_free_llm(
         provider = provider_by_name(provider_name, include_premium=True)
         if not provider or not model:
             continue
+        extra_payload: dict[str, Any] = {}  # FREE_LLM_RUNTIME_QUARANTINE_EXTRA_PAYLOAD_INIT
         try:
             extra_payload = _thinking_extra_payload(
                 task=task,
@@ -202,6 +283,7 @@ def complete_free_llm(
                 "cost_tier": route.get("cost_tier"),
                 "thinking_enabled": bool(extra_payload),
             }
+            _record_route_success(task, provider_name, model)  # FREE_LLM_RUNTIME_QUARANTINE_SUCCESS
             _append_usage({
                 "ts": datetime.now(timezone.utc).isoformat(),
                 "task": task,
@@ -215,6 +297,7 @@ def complete_free_llm(
             return result
         except Exception as exc:
             errors.append({"provider": provider_name, "model": model, "error": str(exc)[:500]})
+            _record_route_failure(task, provider_name, model, str(exc))  # FREE_LLM_RUNTIME_QUARANTINE_FAILURE
             _append_usage({
                 "ts": datetime.now(timezone.utc).isoformat(),
                 "task": task,

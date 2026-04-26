@@ -381,53 +381,67 @@ def purge_stale_products(
 
 
 def run_nightly_catalog_refresh(db: Session) -> dict[str, Any]:
-    elite_result = refresh_elite_catalogs(db)
-    keyword_result = refresh_keyword_catalogs(db)
-    inactive_result = inactivate_expired_products(db)
-    purge_result = purge_stale_products(db)
+    # CATALOG_STAGE_ISOLATION_GATE
+    def _stage(name: str, fn) -> dict[str, Any]:
+        started = datetime.now(timezone.utc)
+        try:
+            result = fn()
+            try:
+                db.commit()
+            except Exception:
+                pass
 
-    try:
+            if isinstance(result, dict):
+                out = dict(result)
+                out.setdefault("status", "success")
+            else:
+                out = {"status": "success", "result": result}
+
+            out.setdefault("stage", name)
+            out.setdefault("started_at", started.isoformat())
+            out.setdefault("finished_at", datetime.now(timezone.utc).isoformat())
+            return out
+        except Exception as exc:
+            try:
+                db.rollback()
+            except Exception:
+                pass
+            return {
+                "stage": name,
+                "status": "failed",
+                "error": repr(exc),
+                "started_at": started.isoformat(),
+                "finished_at": datetime.now(timezone.utc).isoformat(),
+            }
+
+    def _free_llm_refresh() -> dict[str, Any]:
         from app.services.free_llm.model_catalog_refresh_service import refresh_free_llm_model_catalog
         from app.services.free_llm.health_probe_service import refresh_free_llm_health
 
         free_llm_catalog_result = refresh_free_llm_model_catalog()
-        free_llm_health_result = refresh_free_llm_health()
-        free_llm_refresh_result = {
+        free_llm_health_result = refresh_free_llm_health(
+            mode="quick",
+            success_target=6,
+            total_timeout_seconds=120,
+        )
+        return {
             "status": "success",
             "catalog_candidate_count": free_llm_catalog_result.get("candidate_count"),
             "health_success_count": free_llm_health_result.get("success_count"),
             "health_probe_count": free_llm_health_result.get("probe_count"),
-        }
-    except Exception as exc:
-        free_llm_refresh_result = {
-            "status": "failed",
-            "error": str(exc),
+            "mode": free_llm_health_result.get("mode"),
         }
 
-    try:
-        whitelist_result = refresh_proactive_recommend_whitelist(db)
-    except Exception as exc:
-        whitelist_result = {
-            "status": "failed",
-            "error": str(exc),
-        }
-
-    try:
+    def _price_refresh() -> dict[str, Any]:
         from app.services.jd_price_freshness_service import refresh_stale_recommendation_pool_prices
-
-        price_freshness_result = refresh_stale_recommendation_pool_prices(db)
-    except Exception as exc:
-        price_freshness_result = {
-            "status": "failed",
-            "error": repr(exc),
-        }
+        return refresh_stale_recommendation_pool_prices(db)
 
     return {
-        "elite_refresh": elite_result,
-        "keyword_refresh": keyword_result,
-        "inactive_cleanup": inactive_result,
-        "purge_cleanup": purge_result,
-        "free_llm_refresh": free_llm_refresh_result,
-        "proactive_whitelist_refresh": whitelist_result,
-        "price_freshness_refresh": price_freshness_result,
+        "elite_refresh": _stage("elite_refresh", lambda: refresh_elite_catalogs(db)),
+        "keyword_refresh": _stage("keyword_refresh", lambda: refresh_keyword_catalogs(db)),
+        "inactive_cleanup": _stage("inactive_cleanup", lambda: inactivate_expired_products(db)),
+        "purge_cleanup": _stage("purge_cleanup", lambda: purge_stale_products(db)),
+        "free_llm_refresh": _stage("free_llm_refresh", _free_llm_refresh),
+        "proactive_whitelist_refresh": _stage("proactive_whitelist_refresh", lambda: refresh_proactive_recommend_whitelist(db)),
+        "price_freshness_refresh": _stage("price_freshness_refresh", _price_refresh),
     }

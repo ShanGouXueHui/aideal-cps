@@ -1772,3 +1772,12 @@ P3 当前新增：
 - 商品价格刷新应走商品级缓存或后台任务，结果可被所有用户共享；不得在微信同步回复路径按用户实时打京东接口。
 - 同款/近同款判断不只看 product_id，也参考 sku、materialUrl 尾码、图片尾码、标题核心等展示身份特征。
 <!-- END 2026-04-27 推荐展示近同款去重 -->
+
+## 2026-04-27 Free LLM routing governance update
+- Free LLM providers are governed as independent infrastructure modules, decoupled from WeChat, JD and H5 paths.
+- Model catalog refresh discovers candidates; health probe scores usable models; active routing keeps per-task route lists; runtime fallback skips failed routes.
+- JSON-required tasks must not route to models whose latest probe is `json_ok=false`.
+- Runtime failures are quarantined by `(task, provider, model)` to avoid repeatedly hitting unstable primary routes.
+- Provider trial expiry can be declared by non-secret env/config, e.g. `BAILIAN_FREE_TRIAL_EXPIRES_AT=2026-xx-xxT00:00:00+00:00`; expired providers are skipped automatically.
+- Singapore bridge/proxy should use provider-level `FREE_POOL_*_BASE_URL` env overrides and a dedicated Linux account, so it is isolated from unrelated users and projects.
+- Catalog nightly refresh is stage-isolated: JD expansion, cleanup, free LLM, whitelist and price refresh can fail independently.
