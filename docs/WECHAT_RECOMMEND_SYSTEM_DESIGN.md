@@ -754,7 +754,7 @@
    - 商品承接页：`/h5/recommend/{product_id}`
    - 更多同类：`/h5/recommend/more-like-this`
    - 购买跳转：`/promotion/redirect`
-   - 不再保留 `/h5/recommend`、`/promotion/redirect` 兼容入口，避免微信图文卡片路径混乱。
+   - 不再保留 `/api/h5/recommend`、`/api/promotion/redirect` 兼容入口，避免微信图文卡片路径混乱。
 
 2. 微信消息路由中的用户身份统一使用真实用户 openid：
    - 微信 XML 入参中，`to_user` 是真实用户 openid。

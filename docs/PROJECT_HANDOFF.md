@@ -643,10 +643,10 @@ P3 当前新增：
 ## 2026-04-16 22:21:52 redirect alias 与同类页透传 openid 修正
 
 ### 已修复
-- promotion redirect 同时支持：
+- promotion redirect 历史上曾同时兼容：
   - `/promotion/redirect`
-  - `/promotion/redirect`
-- 解决推荐文本里使用 `/promotion/redirect` 但服务只暴露 `/promotion/redirect` 的不一致问题
+  - `/api/promotion/redirect`【历史兼容入口，现已废弃】
+- 解决推荐文本与服务端购买跳转路径不一致问题；当前最终路径统一为 `/promotion/redirect`。
 - `more-like-this` H5 页面下单链接已透传 `wechat_openid`
 - 推荐文本中的“更多同类产品”链接也已透传 `wechat_openid`
 
@@ -661,9 +661,9 @@ P3 当前新增：
 
 ### 本轮修复
 - 显式重写 `app/api/promotion.py`
-- 确保以下两个路由同时可用：
+- 历史阶段曾确保以下两个路由同时可用：
   - `/promotion/redirect`
-  - `/promotion/redirect`
+  - `/api/promotion/redirect`【历史兼容入口，现已废弃】
 - 修复 `wechat_recommend_h5_service.py` 中 `_detail_url()` 被误注入 `wechat_openid` 导致的 `NameError`
 - 保留 `more-like-this` 链接透传 `wechat_openid`
 
@@ -1377,7 +1377,7 @@ P3 当前新增：
    - 商品承接页：`/h5/recommend/{product_id}`
    - 更多同类：`/h5/recommend/more-like-this`
    - 购买跳转：`/promotion/redirect`
-   - 不再保留 `/h5/recommend`、`/promotion/redirect` 兼容入口，避免微信图文卡片路径混乱。
+   - 不再保留 `/api/h5/recommend`、`/api/promotion/redirect` 兼容入口，避免微信图文卡片路径混乱。
 
 2. 微信消息路由中的用户身份统一使用真实用户 openid：
    - 微信 XML 入参中，`to_user` 是真实用户 openid。
