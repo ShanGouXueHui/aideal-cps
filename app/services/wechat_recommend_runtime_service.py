@@ -372,11 +372,26 @@ def _h5_price_display_text(key: str, default: str = "") -> str:
     return str(value).strip()
 
 def _h5_price_money(value: object) -> str:
-    amount = _to_float(value)
-    if amount <= 0:
+    """Format H5 money value.
+
+    Important:
+    - None / empty means unknown and returns empty string.
+    - Numeric 0 is a valid display value and must render as "0".
+      This is required for "可省¥0".
+    """
+    if value is None:
         return ""
-    text = f"{amount:.2f}".rstrip("0").rstrip(".")
-    return text
+    if isinstance(value, str) and value.strip() == "":
+        return ""
+    try:
+        amount = float(value)
+    except Exception:
+        return ""
+    if amount < 0:
+        return ""
+    if abs(amount - int(amount)) < 0.000001:
+        return str(int(amount))
+    return f"{amount:.2f}".rstrip("0").rstrip(".")
 
 def _h5_price_format_template(key: str, **kwargs: object) -> str:
     template = _h5_price_display_text(key)
@@ -903,7 +918,7 @@ def get_find_product_entry_text_reply(db: Session, wechat_openid: str) -> str | 
         elif tpl("sales_count"):
             value_bits.append(tpl("sales_count").format(sales=sales))
 
-    value_line = "｜".join(value_bits) or str(cfg.get("default_value_line") or "").strip()
+    value_line = _news_value_line(product)  # CANONICAL_FIND_ENTRY_PRICE_LINE
     detail_url = _detail_url(product, scene="find_product_entry", slot=1, wechat_openid=wechat_openid)
     buy_url = _promotion_url(product, wechat_openid=wechat_openid, scene="find_product_entry", slot=1)
     more_url = _more_like_this_url(product, scene="find_product_entry", slot=1, wechat_openid=wechat_openid)
