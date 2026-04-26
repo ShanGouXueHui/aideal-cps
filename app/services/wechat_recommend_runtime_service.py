@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session
 from app.models.product import Product
 from app.models.wechat_recommend_exposure import WechatRecommendExposure
 from app.services.product_compliance_service import apply_product_visibility_filter
+from app.services.user_crypto_service import hash_identity
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -207,13 +208,14 @@ def _public_base_url() -> str:
 
 
 def _openid_key(openid: str) -> str:
-    return hashlib.sha1(str(openid).encode("utf-8")).hexdigest()[:24]
+    # Per-user dedup key. Uses HMAC-SHA256, not raw openid or plain SHA1.
+    return str(hash_identity(str(openid)) or "")[:64]
 
 
 def _promotion_url(product: Product, *, wechat_openid: str, scene: str, slot: int) -> str:
     tpl = str(
         _url_cfg().get("promotion_redirect_path_template")
-        or "/api/promotion/redirect?wechat_openid={wechat_openid}&product_id={product_id}&scene={scene}&slot={slot}"
+        or "/promotion/redirect?wechat_openid={wechat_openid}&product_id={product_id}&scene={scene}&slot={slot}"
     )
     return _public_base_url() + tpl.format(
         wechat_openid=quote(str(wechat_openid), safe=""),
@@ -226,7 +228,7 @@ def _promotion_url(product: Product, *, wechat_openid: str, scene: str, slot: in
 def _detail_url(product: Product, *, scene: str, slot: int, wechat_openid: str = "") -> str:
     tpl = str(
         _url_cfg().get("recommend_h5_path_template")
-        or "/api/h5/recommend/{product_id}?scene={scene}&slot={slot}"
+        or "/h5/recommend/{product_id}?scene={scene}&slot={slot}"
     )
     base = _public_base_url() + tpl.format(
         product_id=int(product.id),
@@ -242,7 +244,7 @@ def _detail_url(product: Product, *, scene: str, slot: int, wechat_openid: str =
 def _more_like_this_url(product: Product, *, scene: str, slot: int, wechat_openid: str = "") -> str:
     tpl = str(
         _url_cfg().get("more_like_this_path_template")
-        or "/api/h5/recommend/more-like-this?product_id={product_id}&scene={scene}&slot={slot}"
+        or "/h5/recommend/more-like-this?product_id={product_id}&scene={scene}&slot={slot}"
     )
     base = _public_base_url() + tpl.format(
         product_id=int(product.id),
@@ -362,13 +364,22 @@ def _score(product: Product) -> float:
     )
 
 
+MENU_CROSS_DEDUP_SCENES = {"today_recommend", "find_product_entry"}
+
+
+def _dedup_scenes(scene: str) -> list[str]:
+    if scene in MENU_CROSS_DEDUP_SCENES:
+        return sorted(MENU_CROSS_DEDUP_SCENES)
+    return [scene]
+
+
 def _recent_scene_product_ids(db: Session, *, openid_hash: str, scene: str) -> set[int]:
     try:
         rows = (
             db.query(WechatRecommendExposure.product_id)
             .filter(
                 WechatRecommendExposure.openid_hash == openid_hash,
-                WechatRecommendExposure.scene == scene,
+                WechatRecommendExposure.scene.in_(_dedup_scenes(scene)),
             )
             .all()
         )
@@ -383,7 +394,7 @@ def _reset_scene_exposures(db: Session, *, openid_hash: str, scene: str) -> None
             db.query(WechatRecommendExposure)
             .filter(
                 WechatRecommendExposure.openid_hash == openid_hash,
-                WechatRecommendExposure.scene == scene,
+                WechatRecommendExposure.scene.in_(_dedup_scenes(scene)),
             )
             .delete(synchronize_session=False)
         )

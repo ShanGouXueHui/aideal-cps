@@ -9,12 +9,17 @@ from sqlalchemy.orm import Session
 from app.models.product import Product
 from app.models.user import User
 from app.services.product_intent_service import parse_product_intent
+from app.services.user_crypto_service import decrypt_text, encrypt_text
 from app.services.user_profile_config_service import load_user_profile_rules
 from app.services.user_service import get_or_create_user_by_openid_db
 
 
 def _load_category_map(user: User) -> dict[str, int]:
-    raw = user.preferred_categories or ""
+    raw = ""
+    if getattr(user, "preferred_categories_ciphertext", None):
+        raw = decrypt_text(user.preferred_categories_ciphertext) or ""
+    if not raw:
+        raw = user.preferred_categories or ""
     if not raw:
         return {}
     try:
@@ -28,6 +33,12 @@ def _load_category_map(user: User) -> dict[str, int]:
 
 def _dump_category_map(data: dict[str, int]) -> str:
     return json.dumps(data, ensure_ascii=False, sort_keys=True)
+
+
+def _save_category_map(user: User, data: dict[str, int]) -> None:
+    raw = _dump_category_map(data)
+    user.preferred_categories = None
+    user.preferred_categories_ciphertext = encrypt_text(raw)
 
 
 def _increase_capped(current: float | None, delta: float, cap: float) -> float:
@@ -58,7 +69,8 @@ def update_user_profile_from_text(db: Session, openid: str, text: str, nickname:
 
     user.last_interaction_at = datetime.now(timezone.utc)
     user.interaction_count = int(user.interaction_count or 0) + 1
-    user.last_query_text = text.strip()
+    user.last_query_text = None
+    user.last_query_text_ciphertext = encrypt_text(text.strip())
 
     if intent["shopping_intent"]:
         categories = _load_category_map(user)
@@ -66,7 +78,7 @@ def update_user_profile_from_text(db: Session, openid: str, text: str, nickname:
         if intent.get("commodity"):
             commodity = intent["commodity"]
             categories[commodity] = int(categories.get(commodity, 0)) + int(weights["commodity"])
-            user.preferred_categories = _dump_category_map(categories)
+            _save_category_map(user, categories)
 
         if intent.get("wants_low_price"):
             user.price_sensitive_score = _increase_capped(
@@ -109,7 +121,7 @@ def update_user_profile_from_click(db: Session, user: User, product: Product) ->
     category_name = getattr(product, "category_name", None)
     if category_name:
         categories[category_name] = int(categories.get(category_name, 0)) + int(weights["category"])
-        user.preferred_categories = _dump_category_map(categories)
+        _save_category_map(user, categories)
 
     price = float(getattr(product, "price", 0) or 0)
     coupon_price = float(getattr(product, "coupon_price", 0) or 0)

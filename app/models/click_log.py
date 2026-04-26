@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, DateTime, ForeignKey
+from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Text
 from sqlalchemy.sql import func
 
 from app.core.db import Base
@@ -12,7 +12,12 @@ class ClickLog(Base):
     product_id = Column(Integer, ForeignKey("products.id"), nullable=False, index=True)
     subunionid = Column(String(64), nullable=False, index=True)
 
+    # Legacy plaintext column retained only for safe migration. New code writes NULL.
     wechat_openid = Column(String(64), nullable=True, index=True)
+
+    wechat_openid_hash = Column(String(64), nullable=True, index=True)
+    wechat_openid_ciphertext = Column(Text, nullable=True)
+
     request_source = Column(String(50), nullable=True)
     scene = Column(String(50), nullable=True, index=True)
     slot = Column(Integer, nullable=True, index=True)

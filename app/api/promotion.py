@@ -59,7 +59,6 @@ def create_promotion_link(
 
 
 @router.get("/promotion/redirect")
-@router.get("/api/promotion/redirect")
 def promotion_redirect(
     wechat_openid: str = Query(...),
     product_id: int = Query(...),

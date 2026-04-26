@@ -705,3 +705,28 @@
    - 不误用公众号 openid。
 <!-- END 2026-04-26 合伙人中心入口商用化 -->
 
+
+<!-- START 2026-04-26 no-api per-user encrypted identity correction -->
+## 2026-04-26 微信链路、用户去重与加密存储修正
+
+本次统一修正三类核心问题：
+
+1. 用户可见商品链路统一不带 `/api`：
+   - H5 商品页：`/h5/recommend/{product_id}`
+   - 更多同类：`/h5/recommend/more-like-this`
+   - 京东跳转：`/promotion/redirect`
+   - 微信服务号回调仍为 `/wechat/callback`，这是公众号服务端入口，不属于用户可见商品链路。
+
+2. 新用户关注后立即创建独立免费用户：
+   - 关注事件 `SUBSCRIBE` 会写入用户记录。
+   - 后续“找商品”“今日推荐”“文本商品需求”全部使用用户 openid，而不是公众号 gh_xxx。
+   - 推荐曝光去重按 `per_user_cross_menu_scene` 执行，`find_product_entry` 与 `today_recommend` 对同一用户共享去重池，避免用户连续点击两个菜单看到重复商品。
+   - 不做全局去重，避免未来十万+用户互相影响。
+
+3. 用户数据加密存储：
+   - openid、unionid、nickname、last_query_text、preferred_categories 写入 hash + ciphertext。
+   - 旧明文字段仅作为迁移兼容字段保留，迁移脚本会把已有明文迁入密文字段并置空。
+   - 曝光去重使用 HMAC-SHA256 后的用户 hash，不存原始 openid。
+
+当前设计结论：现网只保留一套用户可见链路，不再同时维护 `/api/h5` 和 `/api/promotion` 两套路由，避免微信端路径漂移和重复分支。
+<!-- END 2026-04-26 no-api per-user encrypted identity correction -->

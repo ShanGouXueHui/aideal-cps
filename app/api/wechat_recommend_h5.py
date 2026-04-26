@@ -31,7 +31,7 @@ def _normalize_title_tags(content: str) -> str:
 router = APIRouter()
 
 
-@router.get("/api/h5/recommend/more-like-this", name="recommend_more_like_this_page")
+@router.get("/h5/recommend/more-like-this", name="recommend_more_like_this_page")
 async def recommend_more_like_this_page(
     product_id: int,
     scene: str = Query(default=""),
@@ -53,7 +53,7 @@ async def recommend_more_like_this_page(
         db.close()
 
 
-@router.get("/api/h5/recommend/{product_id}", name="recommend_detail_page")
+@router.get("/h5/recommend/{product_id}", name="recommend_detail_page")
 async def recommend_detail_page(
     product_id: int,
     scene: str = Query(default=""),

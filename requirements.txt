@@ -12,3 +12,4 @@ python-multipart==0.0.20
 requests==2.32.3
 qrcode==5.3
 Pillow==12.2.0
+cryptography==43.0.3

@@ -8,9 +8,23 @@ class User(Base):
     __tablename__ = "users"
 
     id = Column(Integer, primary_key=True, index=True)
+
+    # Legacy plaintext columns retained only for safe migration. New code writes NULL.
     wechat_openid = Column(String(64), unique=True, nullable=True)
     wechat_unionid = Column(String(64), unique=True, nullable=True)
     nickname = Column(String(128), nullable=True)
+    preferred_categories = Column(Text, nullable=True)
+    last_query_text = Column(Text, nullable=True)
+
+    # Encrypted identity and profile payloads.
+    wechat_openid_hash = Column(String(64), unique=True, nullable=True, index=True)
+    wechat_openid_ciphertext = Column(Text, nullable=True)
+    wechat_unionid_hash = Column(String(64), unique=True, nullable=True, index=True)
+    wechat_unionid_ciphertext = Column(Text, nullable=True)
+    nickname_ciphertext = Column(Text, nullable=True)
+    preferred_categories_ciphertext = Column(Text, nullable=True)
+    last_query_text_ciphertext = Column(Text, nullable=True)
+
     subunionid = Column(String(64), unique=True, nullable=False)
 
     first_subscribe_at = Column(DateTime(timezone=True), nullable=True)
@@ -21,9 +35,6 @@ class User(Base):
     quality_sensitive_score = Column(Float, default=0.0)
     sales_sensitive_score = Column(Float, default=0.0)
     self_operated_sensitive_score = Column(Float, default=0.0)
-
-    preferred_categories = Column(Text, nullable=True)
-    last_query_text = Column(Text, nullable=True)
 
     morning_push_enabled = Column(Boolean, default=True, index=True)
     morning_push_hour = Column(Integer, default=8, index=True)

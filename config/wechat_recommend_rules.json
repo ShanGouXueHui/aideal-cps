@@ -52,8 +52,8 @@
   },
   "urls": {
     "public_base_url": "https://aidealfy.cn",
-    "promotion_redirect_path": "/api/promotion/redirect",
-    "recommend_h5_path_template": "/api/h5/recommend/{product_id}"
+    "promotion_redirect_path": "/promotion/redirect",
+    "recommend_h5_path_template": "/h5/recommend/{product_id}"
   },
   "text_labels": {
     "price": "到手参考",
@@ -83,11 +83,16 @@
   },
   "dedupe_policy": {
     "mode": "cycle_pool",
-    "scope": "per_user_per_scene",
+    "scope": "per_user_cross_menu_scene",
     "window_days": 0,
     "restart_after_exhaustion": true,
     "strict_no_repeat_before_exhaustion": true,
-    "allow_partial_batch_when_pool_exhausted": true
+    "allow_partial_batch_when_pool_exhausted": true,
+    "identity_key": "encrypted_openid_hash",
+    "cross_scene_dedup_scenes": [
+      "find_product_entry",
+      "today_recommend"
+    ]
   },
   "find_product_entry": {
     "scene": "find_product_entry",
@@ -100,9 +105,9 @@
     "allow_partial_batch_when_pool_exhausted": true
   },
   "url": {
-    "promotion_redirect_path_template": "/api/promotion/redirect?wechat_openid={wechat_openid}&product_id={product_id}&scene={scene}&slot={slot}",
-    "recommend_h5_path_template": "/api/h5/recommend/{product_id}?scene={scene}&slot={slot}",
-    "more_like_this_path_template": "/api/h5/recommend/more-like-this?product_id={product_id}&scene={scene}&slot={slot}"
+    "promotion_redirect_path_template": "/promotion/redirect?wechat_openid={wechat_openid}&product_id={product_id}&scene={scene}&slot={slot}",
+    "recommend_h5_path_template": "/h5/recommend/{product_id}?scene={scene}&slot={slot}",
+    "more_like_this_path_template": "/h5/recommend/more-like-this?product_id={product_id}&scene={scene}&slot={slot}"
   },
   "labels": {
     "buy": "下单链接",
