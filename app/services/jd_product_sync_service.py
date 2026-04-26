@@ -38,6 +38,65 @@ def _find_pending_product_by_sku(db: Session, jd_sku_id: str) -> Product | None:
     return None
 
 
+def _as_decimal_or_zero(value: Any) -> Decimal:
+    try:
+        if value is None or str(value).strip() == "":
+            return Decimal("0")
+        return Decimal(str(value))
+    except Exception:
+        return Decimal("0")
+
+
+def _normalize_product_storage_defaults(payload: dict[str, Any]) -> dict[str, Any]:
+    """Storage-boundary defaults for Product upsert.
+
+    This protects all catalog import paths from DB NOT NULL failures while
+    keeping JD/WeChat communication layers untouched.
+    """
+    normalized = dict(payload)
+
+    price = _as_decimal_or_zero(normalized.get("price"))
+    coupon_price = _as_decimal_or_zero(normalized.get("coupon_price"))
+    purchase_price = _as_decimal_or_zero(normalized.get("purchase_price"))
+    basis_price = _as_decimal_or_zero(normalized.get("basis_price"))
+
+    if purchase_price <= 0:
+        purchase_price = coupon_price if coupon_price > 0 else price
+    if basis_price <= 0:
+        basis_price = price if price > 0 else purchase_price
+
+    if purchase_price > 0 and normalized.get("purchase_price") is None:
+        normalized["purchase_price"] = purchase_price
+    if basis_price > 0 and normalized.get("basis_price") is None:
+        normalized["basis_price"] = basis_price
+    if basis_price > 0 and normalized.get("basis_price_type") is None:
+        normalized["basis_price_type"] = 1
+
+    exact_discount = bool(purchase_price > 0 and basis_price > purchase_price)
+    if normalized.get("is_exact_discount") is None:
+        normalized["is_exact_discount"] = exact_discount
+
+    if normalized.get("price_verified_at") is None and (purchase_price > 0 or basis_price > 0):
+        normalized["price_verified_at"] = datetime.now(timezone.utc)
+
+    bool_defaults = {
+        "merchant_recommendable": True,
+        "age_gate_required": False,
+        "allow_proactive_push": True,
+        "allow_partner_share": True,
+    }
+    for key, default in bool_defaults.items():
+        if key in Product.__table__.columns and normalized.get(key) is None:
+            normalized[key] = default
+
+    if "compliance_level" in Product.__table__.columns and not normalized.get("compliance_level"):
+        normalized["compliance_level"] = "normal"
+
+    if not normalized.get("status"):
+        normalized["status"] = "active"
+
+    return normalized
+
 def _pick_image_url(item: dict[str, Any]) -> str | None:
     image_info = item.get("imageInfo") or {}
     if image_info.get("whiteImage"):
@@ -213,6 +272,7 @@ def upsert_product(db: Session, payload: dict[str, Any]) -> tuple[Product, str]:
         raise ValueError("jd_sku_id is empty")
 
     normalized_payload["jd_sku_id"] = jd_sku_id
+    normalized_payload = _normalize_product_storage_defaults(normalized_payload)
 
     pending_product = _find_pending_product_by_sku(db, jd_sku_id)
     if pending_product:

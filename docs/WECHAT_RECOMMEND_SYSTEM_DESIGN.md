@@ -1158,3 +1158,5 @@
 - Provider trial expiry can be declared by non-secret env/config, e.g. `BAILIAN_FREE_TRIAL_EXPIRES_AT=2026-xx-xxT00:00:00+00:00`; expired providers are skipped automatically.
 - Singapore bridge/proxy should use provider-level `FREE_POOL_*_BASE_URL` env overrides and a dedicated Linux account, so it is isolated from unrelated users and projects.
 - Catalog nightly refresh is stage-isolated: JD expansion, cleanup, free LLM, whitelist and price refresh can fail independently.
+
+- 2026-04-27: Fixed catalog keyword refresh NOT NULL failure for `products.is_exact_discount` without touching WeChat/JD communication layers. Product upsert now enforces storage-boundary defaults for `is_exact_discount`, price snapshot fields, and boolean compliance flags. Catalog live-row import also builds a conservative price snapshot before upsert.

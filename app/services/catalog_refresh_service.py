@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
+from decimal import Decimal
 from typing import Any
 
 from sqlalchemy.orm import Session
@@ -15,6 +16,30 @@ from app.services.jd_product_sync_service import sync_jd_products, upsert_produc
 from app.services.jd_union_client import JDUnionClient, extract_goods_query_items
 from app.services.proactive_whitelist_refresh_service import refresh_proactive_recommend_whitelist
 
+
+
+def _catalog_decimal_or_zero(value: Any) -> Decimal:
+    try:
+        if value is None or str(value).strip() == "":
+            return Decimal("0")
+        return Decimal(str(value))
+    except Exception:
+        return Decimal("0")
+
+
+def _catalog_price_snapshot_from_live_row(row: dict[str, Any]) -> dict[str, Any]:
+    price = _catalog_decimal_or_zero(row.get("price"))
+    coupon_price = _catalog_decimal_or_zero(row.get("coupon_price"))
+    purchase_price = coupon_price if coupon_price > 0 else price
+    basis_price = price if price > 0 else purchase_price
+    has_snapshot = purchase_price > 0 or basis_price > 0
+    return {
+        "purchase_price": purchase_price if purchase_price > 0 else None,
+        "basis_price": basis_price if basis_price > 0 else None,
+        "basis_price_type": 1 if basis_price > 0 else None,
+        "is_exact_discount": bool(purchase_price > 0 and basis_price > purchase_price),
+        "price_verified_at": datetime.now(timezone.utc) if has_snapshot else None,
+    }
 
 def _product_payload_from_live_row(row: dict[str, Any], *, keyword: str, source_profile: str = "") -> dict[str, Any]:
     allowed_keys = set(Product.__table__.columns.keys())
@@ -57,6 +82,8 @@ def _product_payload_from_live_row(row: dict[str, Any], *, keyword: str, source_
         "allow_partner_share": row.get("allow_partner_share"),
         "compliance_notes": row.get("compliance_notes"),
     }
+
+    payload.update(_catalog_price_snapshot_from_live_row(row))
 
     return {k: v for k, v in payload.items() if k in allowed_keys}
 

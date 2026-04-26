@@ -26,7 +26,7 @@ class Product(Base):
     basis_price = Column(Numeric(12, 2), nullable=True)
     basis_price_type = Column(Integer, nullable=True)
     price_verified_at = Column(DateTime(timezone=True), nullable=True)
-    is_exact_discount = Column(Boolean, nullable=True)
+    is_exact_discount = Column(Boolean, nullable=False, server_default="0", default=False, index=True)
     commission_rate = Column(Float, default=0.0)
     estimated_commission = Column(Numeric(12, 2), default=0.00)
     sales_volume = Column(Integer, default=0)
