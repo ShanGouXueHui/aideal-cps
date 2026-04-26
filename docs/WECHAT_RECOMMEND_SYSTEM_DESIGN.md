@@ -1131,3 +1131,23 @@
 4. 推荐理由继续使用配置化规则，表达必须有购买建议信心，但不夸大、不承诺最低价，不暴露“从众心理/省心心理/实时页”等内部话术逻辑。
 5. 代码不新增旧函数/新函数兼容分支；保持单一 canonical renderer 和单一价格展示链路。
 <!-- END 2026-04-27 找商品正文与可省0修正 -->
+
+<!-- START 2026-04-27 JD价格源与推荐排序修正 -->
+## 2026-04-27 JD价格源与推荐排序修正
+
+本次修正目标：解决推荐商品价格源、到手价、官网价、节省金额和排序信号不一致的问题。
+
+稳定口径如下：
+
+1. `jd.union.open.goods.query` / `jingfen.query` 返回中，`skuId`、`wareId` 经常为空；商品精确匹配不能只依赖 `skuId`，必须使用 `spuid + materialUrl signature + title similarity` 多因子兜底。
+2. 价格快照统一字段：
+   - `basis_price`：对比基准价，优先 `purchasePriceInfo.thresholdPrice / basisPrice`，再回退 `priceInfo.price / lowestPrice`。
+   - `purchase_price`：真实到手参考价，取 `purchasePriceInfo.purchasePrice`、`priceInfo.lowestCouponPrice`、`priceInfo.lowestPrice`、`priceInfo.price` 中合理正数的最低值。
+   - `is_exact_discount=True` 仅当 `basis_price > purchase_price > 0`。
+3. `price_verified_at` 只表示“已检查价格”，不是商品价值信号；推荐排序不得因为某商品被检查过就排到折扣更好的商品前面。
+4. 今日推荐排序优先真实购物价值：精确折扣、可省率、可省金额、综合分、销量；零节省商品不得因 `price_verified_at` 靠前。
+5. H5 展示层保持单一 canonical renderer，不再新增旧函数/新函数兼容分支。
+6. 后台补价使用 `jd_exact_price_service.refresh_single_product_exact_price()`，不要再恢复旧的失效价格接口分支。
+7. 生产部署时只允许走：GitHub 提交 -> 生产拉取 -> 编译 -> 重启 -> public smoke；不得在生产上手工叠加未提交 patch。
+
+<!-- END 2026-04-27 JD价格源与推荐排序修正 -->

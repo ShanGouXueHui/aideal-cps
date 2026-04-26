@@ -99,27 +99,70 @@ def _pick_good_comments_share(item: dict[str, Any]) -> float | None:
 
 
 
-def _price_snapshot_from_price_info(price_info: dict[str, Any]) -> dict[str, Any]:
-    """Build product price snapshot from JD goods priceInfo during catalog sync."""
-    try:
-        official_price = Decimal(str(price_info.get("price") or 0))
-    except Exception:
-        official_price = Decimal("0")
 
-    try:
-        coupon_price = Decimal(str(price_info.get("lowestCouponPrice") or price_info.get("lowestPrice") or 0))
-    except Exception:
-        coupon_price = Decimal("0")
+def _price_snapshot_from_price_info(
+    price_info: dict[str, Any],
+    purchase_price_info: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Build canonical JD Union price snapshot from goods.query/jingfen.query fields.
 
-    purchase_price = coupon_price if coupon_price > 0 else official_price
-    basis_price = official_price if official_price > 0 else Decimal("0")
-    has_snapshot = purchase_price > 0 or basis_price > 0
+    Canonical rule:
+    - basis_price: comparison/base price, normally thresholdPrice or priceInfo.price.
+    - purchase_price: lowest positive purchasable price visible in JD Union fields.
+      It must consider both purchasePriceInfo.purchasePrice and priceInfo.lowestCouponPrice,
+      because either side can be lower depending on coupon/promotion composition.
+    """
+    purchase_price_info = purchase_price_info or {}
+
+    def money(value: Any) -> Decimal:
+        try:
+            if value is None or str(value).strip() == "":
+                return Decimal("0")
+            return Decimal(str(value))
+        except Exception:
+            return Decimal("0")
+
+    def first_positive(*values: Any) -> Decimal:
+        for value in values:
+            amount = money(value)
+            if amount > 0:
+                return amount
+        return Decimal("0")
+
+    def min_positive(*values: Any) -> Decimal:
+        positives = [money(value) for value in values if money(value) > 0]
+        return min(positives) if positives else Decimal("0")
+
+    basis_price = first_positive(
+        purchase_price_info.get("thresholdPrice"),
+        purchase_price_info.get("basisPrice"),
+        price_info.get("price"),
+        price_info.get("lowestPrice"),
+        price_info.get("lowestCouponPrice"),
+    )
+
+    purchase_price = min_positive(
+        purchase_price_info.get("purchasePrice"),
+        price_info.get("lowestCouponPrice"),
+        price_info.get("lowestPrice"),
+        price_info.get("price"),
+    )
+
+    if basis_price <= 0 and purchase_price > 0:
+        basis_price = purchase_price
+    if purchase_price <= 0 and basis_price > 0:
+        purchase_price = basis_price
+    if basis_price > 0 and purchase_price > 0 and basis_price < purchase_price:
+        basis_price = purchase_price
+
     exact_discount = purchase_price > 0 and basis_price > purchase_price
+    has_snapshot = purchase_price > 0 or basis_price > 0
+    basis_type = purchase_price_info.get("basisPriceType") or price_info.get("lowestPriceType") or 1
 
     return {
         "purchase_price": purchase_price if purchase_price > 0 else None,
         "basis_price": basis_price if basis_price > 0 else None,
-        "basis_price_type": 1 if basis_price > 0 else None,
+        "basis_price_type": int(basis_type) if str(basis_type).strip().isdigit() else 1,
         "is_exact_discount": bool(exact_discount),
         "price_verified_at": datetime.now(timezone.utc) if has_snapshot else None,
     }
@@ -159,6 +202,7 @@ def normalize_jd_item(
     merchant_snapshot: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     price_info = item.get("priceInfo") or {}
+    purchase_price_info = item.get("purchasePriceInfo") or {}
     commission_info = item.get("commissionInfo") or {}
     category_info = item.get("categoryInfo") or {}
     shop_info = item.get("shopInfo") or {}
@@ -167,7 +211,7 @@ def normalize_jd_item(
     jd_sku_id = _pick_jd_sku_id(item, material_url)
     merchant_snapshot = merchant_snapshot or {}
 
-    price_snapshot = _price_snapshot_from_price_info(price_info)
+    price_snapshot = _price_snapshot_from_price_info(price_info, purchase_price_info)
 
     payload = {
         "jd_sku_id": jd_sku_id,

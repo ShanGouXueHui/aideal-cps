@@ -170,19 +170,26 @@ def _filter_commercial_proactive_pool(products: list[Product]) -> list[Product]:
 
 
 
+
 def _prioritize_price_verified_products(products: list[Product]) -> list[Product]:
-    """Prefer products with refreshed/exact JD price snapshot before user-facing recommendation."""
+    """Prioritize real shopping value, not merely whether price was checked.
+
+    price_verified_at only means a product was checked. It is not a value signal.
+    """
     price_display_cfg = _cfg().get("price_display") or {}
     if isinstance(price_display_cfg, dict) and not price_display_cfg.get("prefer_verified_in_recommendation", True):
         return products
 
-    def rank(product: Product) -> tuple[int, int, float, int, int]:
-        exact = 1 if bool(getattr(product, "is_exact_discount", False)) and bool(getattr(product, "price_verified_at", None)) else 0
-        verified = 1 if bool(getattr(product, "price_verified_at", None)) else 0
+    def rank(product: Product) -> tuple[int, float, float, float, int, int]:
+        snap = _price_snapshot_for_display(product)
+        official = _to_float(snap.get("official_price"))
+        saved = _to_float(snap.get("saved_amount"))
+        saved_rate = (saved / official) if official > 0 and saved > 0 else 0.0
+        exact_discount = 1 if bool(getattr(product, "is_exact_discount", False)) and saved > 0 else 0
         score = _score(product)
         sales = _to_int(getattr(product, "sales_volume", None))
         pid = _to_int(getattr(product, "id", None))
-        return exact, verified, score, sales, pid
+        return exact_discount, saved_rate, saved, score, sales, pid
 
     return sorted(products, key=rank, reverse=True)
 
