@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Query, Request
 from fastapi.responses import HTMLResponse
 import re
 import html
@@ -29,6 +29,39 @@ def _normalize_title_tags(content: str) -> str:
     )
 
 router = APIRouter()
+
+
+
+@router.api_route("/users/test-init", methods=["GET", "POST"], name="h5_user_test_init")
+async def h5_user_test_init(
+    request: Request,
+    wechat_openid: str = Query(default=""),
+):
+    """Compatibility endpoint for H5 user init."""  # H5_USER_TEST_INIT_COMPAT_GATE
+    openid = (
+        wechat_openid
+        or request.query_params.get("openid")
+        or request.query_params.get("wechat_openid")
+        or ""
+    ).strip()
+
+    if openid:
+        db = SessionLocal()
+        try:
+            from app.services.user_service import get_or_create_user_by_openid_db
+
+            get_or_create_user_by_openid_db(db, openid)
+            db.commit()
+        except Exception:
+            db.rollback()
+        finally:
+            db.close()
+
+    from app.services.wechat_find_product_entry_config_service import load_find_product_entry_config
+
+    cfg = load_find_product_entry_config()
+    response = cfg.get("h5_user_init_response")
+    return response if isinstance(response, dict) else {"ok": True}
 
 
 @router.get("/h5/recommend/more-like-this", name="recommend_more_like_this_page")

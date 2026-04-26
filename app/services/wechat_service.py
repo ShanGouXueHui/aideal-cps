@@ -25,6 +25,7 @@ def _cdata(value: str) -> str:
 
 
 def build_text_response(to_user, from_user, content):
+    content = str(content or '').replace('\\r\\n', '\n').replace('\\n', '\n')  # TEXT_RESPONSE_NEWLINE_NORMALIZE_GATE
     now = int(time.time())
     return (
         "<xml>"

@@ -1,0 +1,45 @@
+{
+  "version": 1,
+  "fallback_text": "你可以直接告诉我想买什么。\n\n例如：洗衣液，便宜一点，销量高一点。\n我会尽量给你筛 3 个更值、更省、更稳的选择。",
+  "short_title_limit": 78,
+  "default_product_title": "优选商品",
+  "default_value_line": "先看实时价格",
+  "separator": "：",
+  "header_lines": [
+    "🛒 找商品入口",
+    "",
+    "你可以直接回复想买的商品，例如：",
+    "洗衣液，便宜一点，销量高一点",
+    "",
+    "我先给你放 1 个热门好价入口：",
+    ""
+  ],
+  "labels": {
+    "product": "📦",
+    "value": "💰 价格优势",
+    "category": "🏷 品类",
+    "shop": "🏪 店铺",
+    "reason": "🔥 推荐理由",
+    "tip": "🧠 省心点",
+    "detail": "📄 图文详情",
+    "buy": "🛍 点击我去京东快捷下单",
+    "more": "🔎 更多类似商品"
+  },
+  "value_templates": {
+    "price": "到手约 ¥{price:g}",
+    "saved": "可省 ¥{saved:g}",
+    "sales_wan": "热销 {sales_wan}万+",
+    "sales_count": "热销 {sales}+"
+  },
+  "conversion_tip": "先看这个入口，不合适再告诉我更具体需求，我再换一组。",
+  "h5_buttons": {
+    "buy": "点击我去京东快捷下单",
+    "more": "更多类似商品"
+  },
+  "h5_user_init_response": {
+    "ok": true,
+    "success": true,
+    "initialized": true,
+    "user_status": "ready"
+  }
+}

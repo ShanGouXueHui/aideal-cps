@@ -659,9 +659,12 @@ def get_today_recommend_text_reply(db: Session, wechat_openid: str) -> str | Non
 
 
 def get_find_product_entry_text_reply(db: Session, wechat_openid: str) -> str | None:
+    from app.services.wechat_find_product_entry_config_service import load_find_product_entry_config
+
+    cfg = load_find_product_entry_config()
     product = _find_entry_product(db, wechat_openid=wechat_openid)
     if not product:
-        return "👉 也可以直接回复你想买的商品，比如：卫生纸、洗衣液、宝宝湿巾。"
+        return str(cfg.get("fallback_text") or "").strip()
 
     _record_scene_exposures(
         db,
@@ -670,20 +673,70 @@ def get_find_product_entry_text_reply(db: Session, wechat_openid: str) -> str | 
         products=[product],
     )
 
-    return "\n".join(
-        [
-            "🔥 先给你放 1 个当前更稳的入口商品：",
-            "",
-            f"【1】{getattr(product, 'title', '')}",
-            f"💰 到手参考：{_format_price_line(product)}",
-            f"✨ 推荐理由：{_commercial_reason(product)}",
-            f"📄 {LABEL_DETAIL}：{_detail_url(product, scene='find_product_entry', slot=1, wechat_openid=wechat_openid)}",
-            f"🛒 {LABEL_BUY}：{_promotion_url(product, wechat_openid=wechat_openid, scene='find_product_entry', slot=1)}",
-            f"🔎 {LABEL_MORE}：{_more_like_this_url(product, scene='find_product_entry', slot=1, wechat_openid=wechat_openid)}",
-            "",
-            "👉 也可以直接回复你想买的商品，比如：卫生纸、洗衣液、宝宝湿巾。",
-        ]
-    ).strip()
+    labels = cfg.get("labels") if isinstance(cfg.get("labels"), dict) else {}
+    value_templates = cfg.get("value_templates") if isinstance(cfg.get("value_templates"), dict) else {}
+
+    def label(key: str) -> str:
+        return str(labels.get(key) or "").strip()
+
+    def tpl(key: str) -> str:
+        return str(value_templates.get(key) or "").strip()
+
+    separator = str(cfg.get("separator") or "：")
+    title = str(getattr(product, "title", "") or cfg.get("default_product_title") or "").strip()
+    category = str(getattr(product, "category_name", "") or "").strip()
+    shop = str(getattr(product, "shop_name", "") or "").strip()
+    sales = _to_int(getattr(product, "sales_volume", 0))
+    price = _effective_price(product)
+    saved = _saved_amount(product)
+
+    value_bits = []
+    if price > 0 and tpl("price"):
+        value_bits.append(tpl("price").format(price=price))
+    if saved > 0 and tpl("saved"):
+        value_bits.append(tpl("saved").format(saved=saved))
+    if sales > 0:
+        if sales >= 10000 and tpl("sales_wan"):
+            value_bits.append(tpl("sales_wan").format(sales_wan=sales // 10000, sales=sales))
+        elif tpl("sales_count"):
+            value_bits.append(tpl("sales_count").format(sales=sales))
+
+    value_line = "｜".join(value_bits) or str(cfg.get("default_value_line") or "").strip()
+    detail_url = _detail_url(product, scene="find_product_entry", slot=1, wechat_openid=wechat_openid)
+    buy_url = _promotion_url(product, wechat_openid=wechat_openid, scene="find_product_entry", slot=1)
+    more_url = _more_like_this_url(product, scene="find_product_entry", slot=1, wechat_openid=wechat_openid)
+    reason = _commercial_reason(product)
+
+    try:
+        limit = int(cfg.get("short_title_limit") or 78)
+    except Exception:
+        limit = 78
+    short_title = title[:limit] + ("…" if len(title) > limit else "")
+
+    lines = [str(x) for x in cfg.get("header_lines", []) if x is not None]
+
+    def add_labeled_line(key: str, value: str) -> None:
+        value = str(value or "").strip()
+        if not value:
+            return
+        prefix = label(key)
+        lines.append(f"{prefix}{separator}{value}" if prefix else value)
+
+    product_prefix = label("product")
+    lines.append(f"{product_prefix} {short_title}".strip())
+    add_labeled_line("value", value_line)
+    add_labeled_line("category", category)
+    add_labeled_line("shop", shop)
+    add_labeled_line("reason", reason)
+    add_labeled_line("tip", str(cfg.get("conversion_tip") or ""))
+
+    lines.append("")
+    add_labeled_line("detail", detail_url)
+    add_labeled_line("buy", buy_url)
+    add_labeled_line("more", more_url)
+
+    return '\n'.join(lines).strip()
+
 
 
 
@@ -824,6 +877,12 @@ def _same_reason_text(*, same_shop: bool, same_brand: bool, same_cat: bool, same
 
 
 def render_product_h5(product: Product, *, scene: str = "", slot: str = "", wechat_openid: str = "") -> str:
+    from app.services.wechat_find_product_entry_config_service import load_find_product_entry_config
+    _find_entry_cfg = load_find_product_entry_config()
+    _h5_buttons = _find_entry_cfg.get("h5_buttons") if isinstance(_find_entry_cfg.get("h5_buttons"), dict) else {}
+    h5_buy_button_text = str(_h5_buttons.get("buy") or "")
+    h5_more_button_text = str(_h5_buttons.get("more") or "")
+    # H5_BUTTON_COPY_CONFIG_GATE
     def _clean(value: object) -> str:
         return html.escape(html.unescape(str(value or "")), quote=True)
 
@@ -892,8 +951,8 @@ def render_product_h5(product: Product, *, scene: str = "", slot: str = "", wech
       <div class="reason-title">{section_reason_title}</div>
       <div class="reason">{reason_html}</div>
       <div class="actions">
-        <a class="btn btn-primary" href="{_promotion_url(product, scene=detail_scene, slot=detail_slot, wechat_openid=wechat_openid)}">下单链接</a>
-        <a class="btn btn-secondary" href="{_more_like_this_url(product, scene=detail_scene, slot=detail_slot, wechat_openid=wechat_openid)}">更多同类产品</a>
+        <a class="btn btn-primary" href="{_promotion_url(product, scene=detail_scene, slot=detail_slot, wechat_openid=wechat_openid)}">{h5_buy_button_text}</a>
+        <a class="btn btn-secondary" href="{_more_like_this_url(product, scene=detail_scene, slot=detail_slot, wechat_openid=wechat_openid)}">{h5_more_button_text}</a>
       </div>
     </div>
   </div>

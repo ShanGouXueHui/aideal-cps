@@ -187,6 +187,17 @@ def _record_subscribe_user_profile(openid: str) -> None:
         db.close()
 
 
+
+def _get_configured_find_entry_fallback_text() -> str:
+    try:
+        from app.services.wechat_find_product_entry_config_service import get_find_product_entry_copy
+
+        return get_find_product_entry_copy("fallback_text", "").strip()
+    except Exception:
+        logger.exception("load find product fallback copy failed")
+        return ""
+
+
 def route(
     to_user: str,
     from_user: str,
@@ -261,22 +272,15 @@ def route(
     if msg_type == "event" and event == "CLICK" and event_key == "找商品":
         db = SessionLocal()
         try:
-            articles = _get_find_entry_news_articles(db, to_user)
-            text = "" if articles else _get_find_entry_text(db, to_user)
+            text = _get_find_entry_text(db, to_user)
         finally:
             db.close()
 
-        if articles:
-            logger.info(
-                "find_product passive-news branch | openid_tail=%s article_count=%s",
-                (to_user or "")[-8:],
-                len(articles),
-            )
-            return build_news_response(to_user, from_user, articles)
-
         if not text:
-            text = "可以直接回复你想买的商品，比如：洗衣液、卫生纸、宝宝湿巾。"
-        return build_text_response(to_user, from_user, text)
+            text = _get_configured_find_entry_fallback_text()
+
+        return build_text_response(to_user, from_user, text)  # FIND_PRODUCT_TEXT_ENTRY_CONFIG_GATE
+
 
     if msg_type == "event" and event == "CLICK" and event_key == "合伙人中心":
         db = SessionLocal()
