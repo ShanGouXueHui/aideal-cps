@@ -74,7 +74,9 @@
       "price_unverified_main_template": "热销{sales_text}｜点开看实时券价",
       "price_unverified_main_no_sales": "点开看实时券价",
       "price_unverified_subtitle": "优惠有时效，点开下单页可看到当前可用券、实时到手价和库存。",
-      "price_verified_note": "已读取京东价格信息；优惠有时效，点击下单页可继续查看实时券价。"
+      "price_verified_note": "已读取京东价格信息；优惠有时效，点击下单页可继续查看实时券价。",
+      "price_note_verified": "该价格已通过京东接口刷新；下单前仍可在京东页面确认当前可用券、实时到手价和库存。",
+      "price_note_unverified": "优惠、券、地区和库存会实时变化，点开京东下单页可看到当前可用券和实时到手价。"
     },
     "empty": {
       "unknown": "暂无",

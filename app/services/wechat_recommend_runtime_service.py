@@ -876,6 +876,53 @@ def _same_reason_text(*, same_shop: bool, same_brand: bool, same_cat: bool, same
     return _copy_text("match_reason_labels", "fallback", "相似用途")
 
 
+def _has_exact_verified_price(product: Product) -> bool:
+    """Only show numeric coupon/official price when JD exact-price verification succeeded."""
+    try:
+        return bool(getattr(product, "is_exact_discount", False)) and bool(getattr(product, "price_verified_at", None))
+    except Exception:
+        return False
+
+
+def _exact_verified_price_copy(product: Product, *, labels: dict, sections: dict) -> tuple[str, str]:
+    def label(key: str, fallback: str = "") -> str:
+        return str(labels.get(key) or fallback).strip()
+
+    def section(key: str, fallback: str = "") -> str:
+        return str(sections.get(key) or fallback).strip()
+
+    sales = _to_int(getattr(product, "sales_volume", None))
+    sales_text = ""
+    if sales > 0:
+        if sales >= 10000:
+            sales_text = f"{sales // 10000}万+"
+        else:
+            sales_text = f"{sales}+"
+
+    if _has_exact_verified_price(product):
+        purchase = _to_float(getattr(product, "purchase_price", None)) or _effective_price(product)
+        basis = _to_float(getattr(product, "basis_price", None)) or _to_float(getattr(product, "price", None))
+        saved = basis - purchase if basis > 0 and purchase > 0 and basis > purchase else _saved_amount(product)
+
+        parts = []
+        if purchase > 0:
+            parts.append(f"{label('purchase_price', '优惠价')}¥{purchase:g}")
+        if basis > 0 and basis >= purchase:
+            parts.append(f"{label('jd_official_price', '京东官网价')}¥{basis:g}")
+        if saved > 0:
+            parts.append(f"{label('saved', '立省')}¥{saved:g}")
+        if sales_text:
+            parts.append(f"{label('sales_prefix', '热销')}{sales_text}")
+
+        if parts:
+            return "｜".join(parts), section("price_note_verified", "该价格已通过京东接口刷新；下单前仍可在京东页面确认当前可用券、实时到手价和库存。")
+
+    fallback = label("live_price", "") or section("fallback_price", "点开京东看实时券价")
+    if sales_text:
+        fallback = f"{fallback}｜{label('sales_prefix', '热销')}{sales_text}"
+    return fallback, section("price_note_unverified", "优惠、券、地区和库存会实时变化，点开京东下单页可看到当前可用券和实时到手价。")
+
+
 def render_product_h5(product: Product, *, scene: str = "", slot: str = "", wechat_openid: str = "") -> str:
     from app.services.wechat_find_product_entry_config_service import load_find_product_entry_config
 
@@ -1144,24 +1191,7 @@ def render_recommend_batch_h5(
         return f"{raw:.1f}%".rstrip("0").rstrip(".")
 
     def price_line(product: Product) -> tuple[str, str]:
-        purchase = _effective_price(product)
-        basis = _to_float(getattr(product, "price", None))
-        saved = _saved_amount(product)
-        sales = num_text(getattr(product, "sales_volume", None))
-
-        main_parts: list[str] = []
-        if purchase > 0:
-            main_parts.append(f"{label('purchase_price')}¥{purchase:g}")
-        if basis > 0 and (purchase <= 0 or basis >= purchase):
-            main_parts.append(f"{label('jd_official_price')}¥{basis:g}")
-        if saved > 0:
-            main_parts.append(f"{label('saved')}¥{saved:g}")
-        if sales and label("sales_prefix"):
-            main_parts.append(f"{label('sales_prefix')}{sales}")
-
-        if main_parts:
-            return "｜".join(main_parts), section("price_note")
-        return section("fallback_price"), section("price_note")
+        return _exact_verified_price_copy(product, labels=labels, sections=sections)
 
     def reason_text(product: Product) -> str:
         saved = _saved_amount(product)
