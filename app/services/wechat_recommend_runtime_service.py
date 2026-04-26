@@ -756,6 +756,60 @@ def _pick_diverse(products: list[Product], limit: int) -> list[Product]:
     return picked
 
 
+
+def _has_visible_price_saving(product: Product) -> bool:
+    snap = _price_snapshot_for_display(product)
+    return (
+        _to_float(snap.get("purchase_price")) > 0
+        and _to_float(snap.get("official_price")) > 0
+        and _to_float(snap.get("saved_amount")) > 0
+    )
+
+
+def _refresh_selected_products_for_reply(
+    db: Session,
+    products: list[Product],
+    *,
+    scene: str,
+) -> list[Product]:
+    """Refresh prices before any WeChat-visible copy is generated.
+
+    The JD price parser and H5 renderer are already canonical. This function is
+    only the boundary guard between selection and outbound WeChat text/news copy,
+    so service-account text and H5 use the same refreshed product snapshot.
+    """
+    if not products:
+        return []
+
+    try:
+        from app.services.jd_price_freshness_service import refresh_product_price_if_stale
+    except Exception:
+        return products
+
+    refreshed: list[Product] = []
+    for product in products:
+        try:
+            refreshed_product = refresh_product_price_if_stale(
+                db,
+                product,
+                trigger=scene,
+                force=True,
+            )
+            refreshed.append(refreshed_product or product)
+        except Exception:
+            try:
+                db.rollback()
+            except Exception:
+                pass
+            refreshed.append(product)
+
+    try:
+        db.flush()
+    except Exception:
+        pass
+
+    return _prioritize_price_verified_products(refreshed)
+
 def _sorted_candidates(db: Session) -> list[Product]:
     return sorted(
         _active_recommend_products(db),
@@ -781,7 +835,12 @@ def _select_scene_batch(db: Session, *, wechat_openid: str, scene: str, limit: i
         _reset_scene_exposures(db, openid_hash=openid_hash, scene=scene)
         fresh = list(products)
 
-    batch = _pick_diverse(fresh, limit)
+    candidate_limit = max(limit + 2, limit)
+    candidate_pool = _pick_diverse(fresh, candidate_limit)
+    refreshed_pool = _refresh_selected_products_for_reply(db, candidate_pool, scene=scene)
+    discounted = [p for p in refreshed_pool if _has_visible_price_saving(p)]
+    fallback = [p for p in refreshed_pool if p not in discounted]
+    batch = _pick_diverse(discounted + fallback, limit)
     return batch[:limit]
 
 
