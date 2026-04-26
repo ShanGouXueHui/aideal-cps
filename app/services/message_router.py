@@ -168,6 +168,25 @@ def _get_dialog_text(db, wechat_openid: str, content: str, msg_type: str) -> str
     return str(result or "").strip()
 
 
+def _record_subscribe_user_profile(openid: str) -> None:
+    """Create or refresh encrypted user profile when a user subscribes."""
+    openid = str(openid or "").strip()
+    if not openid:
+        return
+
+    db = SessionLocal()
+    try:
+        from app.services.user_service import get_or_create_user_by_openid_db
+
+        get_or_create_user_by_openid_db(db, openid)
+        db.commit()
+    except Exception:
+        db.rollback()
+        logger.exception("subscribe user profile failed | openid_tail=%s", openid[-8:])
+    finally:
+        db.close()
+
+
 def route(
     to_user: str,
     from_user: str,
@@ -177,7 +196,8 @@ def route(
     event_key: str = "",
     **kwargs,
 ) -> str:
-    if msg_type == "event" and event == "subscribe":
+    if msg_type == "event" and str(event or "").strip().lower() == "subscribe":
+        _record_subscribe_user_profile(to_user)
         db = SessionLocal()
         try:
             _call_candidates(

@@ -3,9 +3,15 @@ from __future__ import annotations
 import base64
 import os
 from functools import lru_cache
+from pathlib import Path
 
 from cryptography.fernet import Fernet, InvalidToken
 from cryptography.hazmat.primitives import hashes, hmac
+from dotenv import load_dotenv
+
+
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+load_dotenv(PROJECT_ROOT / ".env")
 
 
 def normalize_identity(value: str | None) -> str:

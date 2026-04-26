@@ -730,3 +730,48 @@
 
 当前设计结论：现网只保留一套用户可见链路，不再同时维护 `/api/h5` 和 `/api/promotion` 两套路由，避免微信端路径漂移和重复分支。
 <!-- END 2026-04-26 no-api per-user encrypted identity correction -->
+
+<!-- START 2026-04-26 no-api encrypted per-user identity final -->
+## 2026-04-26 no-api 链路、用户级去重与加密身份收口
+
+本次完成微信服务号菜单主链路的最终收口：
+
+1. 现网 H5 与购买跳转只保留无 `/api` 路径：
+   - 商品承接页：`/h5/recommend/{product_id}`
+   - 更多同类：`/h5/recommend/more-like-this`
+   - 购买跳转：`/promotion/redirect`
+   - 不再保留 `/api/h5/recommend`、`/api/promotion/redirect` 兼容入口，避免微信图文卡片路径混乱。
+
+2. 微信消息路由中的用户身份统一使用真实用户 openid：
+   - 微信 XML 入参中，`to_user` 是真实用户 openid。
+   - `from_user` 是公众号原始 ID。
+   - 菜单推荐、文本推荐、合伙人中心、关注欢迎语均不得用公众号 ID 做用户画像或去重。
+
+3. 新用户关注服务号后自动创建为免费用户：
+   - 关注事件会创建或刷新用户记录。
+   - 欢迎语明确表达智省优选宗旨：不催多买，只帮助用户把日常消费买得更值、更省、更稳。
+   - 关注即成为免费用户，后续可基于用户行为逐步完善画像。
+
+4. 用户数据按用户独立存储与去重：
+   - `users.wechat_openid_hash` 作为用户身份检索键。
+   - `wechat_recommend_exposures.openid_hash` 作为每个用户自己的曝光去重依据。
+   - 「找商品」与「今日推荐」共享跨菜单去重，但只在当前用户范围内生效，不能全局去重。
+   - 未来十万级用户关注时，每个用户应拥有独立画像、独立曝光历史、独立推荐疲劳度。
+
+5. 用户敏感身份加密存储：
+   - 新代码不再写入明文 `users.wechat_openid`。
+   - openid 使用 HMAC hash 检索，密文用于必要追溯。
+   - 迁移脚本已将历史用户和点击日志明文字段清空，并补充 hash/ciphertext 字段。
+   - 本地密钥来自 `.env` 的 `USER_DATA_ENCRYPTION_KEY`，不得提交到 GitHub。
+
+6. 已验证通过：
+   - 关注欢迎语包含免费用户权益说明。
+   - 找商品、今日推荐均生成无 `/api` 的 H5 链接。
+   - 图文链接中的 `wechat_openid` 为真实用户 openid，不再是公众号 ID。
+   - 用户 A / 用户 B hash 不同，曝光记录互不影响。
+   - 用户 openid 明文为空，密文存在。
+   - 同一用户先点「找商品」再点「今日推荐」不会重复推荐同一商品。
+
+最后验证时间：2026-04-26 19:44:05
+<!-- END 2026-04-26 no-api encrypted per-user identity final -->
+

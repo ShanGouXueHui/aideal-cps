@@ -1,14 +1,19 @@
 from __future__ import annotations
 
+import sys
 from pathlib import Path
+
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
 
 from dotenv import load_dotenv
 from sqlalchemy import text
 
+load_dotenv(PROJECT_ROOT / ".env")
+
 from app.core.db import engine
 from app.services.user_crypto_service import encrypt_text, hash_identity
-
-load_dotenv(Path(".env"))
 
 
 def _has_column(conn, table: str, column: str) -> bool:
@@ -82,7 +87,11 @@ def main() -> None:
                 conn.execute(text(f"UPDATE users SET {sets} WHERE id=:id"), payload)
                 migrated_users += 1
 
-        clicks = conn.execute(text("SELECT id, wechat_openid FROM click_logs WHERE wechat_openid IS NOT NULL AND wechat_openid != ''")).mappings().all()
+        clicks = conn.execute(text(
+            "SELECT id, wechat_openid FROM click_logs "
+            "WHERE wechat_openid IS NOT NULL AND wechat_openid != ''"
+        )).mappings().all()
+
         migrated_clicks = 0
         for row in clicks:
             conn.execute(
@@ -91,7 +100,11 @@ def main() -> None:
                     "SET wechat_openid_hash=:h, wechat_openid_ciphertext=:c "
                     "WHERE id=:id"
                 ),
-                {"h": hash_identity(row["wechat_openid"]), "c": encrypt_text(row["wechat_openid"]), "id": row["id"]},
+                {
+                    "h": hash_identity(row["wechat_openid"]),
+                    "c": encrypt_text(row["wechat_openid"]),
+                    "id": row["id"],
+                },
             )
             migrated_clicks += 1
 
