@@ -968,25 +968,31 @@ def render_product_h5(product: Product, *, scene: str = "", slot: str = "", wech
         if str(badges.get(k) or "").strip()
     )
 
-    info_rows = [
-        (label("estimated_price"), price_display),
-        (label("saved"), saved_display),
-        (label("sales"), sales or empty_text("no_sales")),
-        (label("comments"), comments or empty_text("no_comments")),
-        (label("good_rate"), good_rate or empty_text("no_comments")),
-        (label("category"), category or empty_text("unknown")),
-        (label("shop"), shop_name or empty_text("unknown")),
-        (label("shop_score"), shop_score or empty_text("no_shop_score")),
-        (label("shop_sales"), shop_sales or empty_text("no_shop_sales")),
-    ]
+    info_rows = []
+
+    def add_info(label_key: str, value: str) -> None:
+        value = str(value or "").strip()
+        if value:
+            info_rows.append((label(label_key), value))
+
+    # 到手参考、预计可省已经在价格优势区展示，商品信息区不再重复。
+    add_info("sales", sales)
+    add_info("comments", comments)
+    add_info("good_rate", good_rate)
+    add_info("category", category)
+    add_info("shop", shop_name)
+
+    # 店铺评分、店铺成交如果数据源没有返回，就不展示“暂无”，避免制造无价值信息。
+    add_info("shop_score", shop_score)
+    add_info("shop_sales", shop_sales)
+
     info_html = "".join(
         f'<div class="kv"><span>{c(k)}</span><strong>{c(v)}</strong></div>'
         for k, v in info_rows
         if str(v or "").strip()
     )
 
-    decision_items = [text("decision_1"), text("decision_2"), text("decision_3")]
-    decision_html = "".join(f"<li>{c(x)}</li>" for x in decision_items if x)
+    note_html = c(text("risk_note"))
 
     return f"""<!doctype html>
 <html lang="zh-CN">
@@ -1046,8 +1052,7 @@ def render_product_h5(product: Product, *, scene: str = "", slot: str = "", wech
 
     <div class="card">
       <div class="section-title">{c(label("decision_title"))}</div>
-      <ul class="decision">{decision_html}</ul>
-      <div class="risk">{c(text("risk_note"))}</div>
+      <div class="risk">{note_html}</div>
     </div>
   </div>
 
