@@ -22,6 +22,7 @@ CONFIG_DIR = PROJECT_ROOT / "config"
 RUN_DIR = PROJECT_ROOT / "run"
 
 
+@lru_cache(maxsize=32)
 def _load_json_file(path: Path) -> dict[str, Any]:
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
@@ -30,6 +31,7 @@ def _load_json_file(path: Path) -> dict[str, Any]:
         return {}
 
 
+@lru_cache(maxsize=8)
 def _proactive_recommend_cfg() -> dict[str, Any]:
     cfg = _load_json_file(CONFIG_DIR / "proactive_recommend_rules.json")
     if not cfg.get("dynamic_whitelist_enabled", True):
@@ -186,6 +188,7 @@ def _prioritize_price_verified_products(products: list[Product]) -> list[Product
 
     return sorted(products, key=rank, reverse=True)
 
+@lru_cache(maxsize=8)
 def _cfg() -> dict[str, Any]:
     try:
         with open("config/wechat_recommend_rules.json", "r", encoding="utf-8") as f:
