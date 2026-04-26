@@ -9,6 +9,7 @@ from app.core.db import SessionLocal
 from app.services.wechat_recommend_runtime_service import (
     get_product_by_id,
     render_more_like_this_h5,
+    render_recommend_batch_h5,
     render_product_h5,
 )
 
@@ -62,6 +63,31 @@ async def h5_user_test_init(
     cfg = load_find_product_entry_config()
     response = cfg.get("h5_user_init_response")
     return response if isinstance(response, dict) else {"ok": True}
+
+
+
+@router.get("/h5/recommend/batch", name="recommend_batch_page")
+async def recommend_batch_page(
+    ids: str = Query(default=""),
+    focus_id: int = Query(default=0),
+    scene: str = Query(default=""),
+    slot: str = Query(default=""),
+    wechat_openid: str = Query(default=""),
+):
+    db = SessionLocal()
+    try:
+        return HTMLResponse(
+            render_recommend_batch_h5(
+                db,
+                ids=ids,
+                focus_id=int(focus_id or 0),
+                scene=scene,
+                slot=slot,
+                wechat_openid=wechat_openid,
+            )
+        )
+    finally:
+        db.close()
 
 
 @router.get("/h5/recommend/more-like-this", name="recommend_more_like_this_page")

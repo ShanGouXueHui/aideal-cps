@@ -198,6 +198,74 @@ def _get_configured_find_entry_fallback_text() -> str:
         return ""
 
 
+
+def _rewrite_today_articles_to_batch_h5(articles: list[dict[str, str]], wechat_openid: str) -> list[dict[str, str]]:
+    if not articles:
+        return articles
+
+    import json
+    import re
+    from pathlib import Path
+    from urllib.parse import quote
+
+    try:
+        cfg_path = Path(__file__).resolve().parents[2] / "config" / "wechat_recommend_rules.json"
+        cfg = json.loads(cfg_path.read_text(encoding="utf-8"))
+        url_cfg = cfg.get("url") if isinstance(cfg.get("url"), dict) else {}
+        tpl = str(url_cfg.get("today_batch_h5_path_template") or "").strip()
+        if not tpl:
+            return articles
+
+        try:
+            from app.core.wechat_recommend_config import PUBLIC_BASE_URL
+            base_url = str(PUBLIC_BASE_URL or "https://aidealfy.cn").rstrip("/")
+        except Exception:
+            base_url = "https://aidealfy.cn"
+
+        product_ids: list[int] = []
+        seen: set[int] = set()
+        for article in articles:
+            url = str((article or {}).get("url") or "")
+            for raw in re.findall(r"/h5/recommend/(\d+)", url):
+                try:
+                    pid = int(raw)
+                except Exception:
+                    continue
+                if pid > 0 and pid not in seen:
+                    product_ids.append(pid)
+                    seen.add(pid)
+
+        if len(product_ids) < 2:
+            return articles
+
+        ids_text = ",".join(str(x) for x in product_ids)
+        rewritten = []
+        for idx, article in enumerate(articles, 1):
+            copy = dict(article)
+            raw_url = str(copy.get("url") or "")
+            found = re.findall(r"/h5/recommend/(\d+)", raw_url)
+            focus_id = int(found[0]) if found else product_ids[0]
+            path = tpl.format(
+                ids=quote(ids_text, safe=","),
+                focus_id=focus_id,
+                scene=quote("today_recommend", safe=""),
+                slot=idx,
+            )
+            joiner = "&" if "?" in path else "?"
+            copy["url"] = (
+                base_url
+                + path
+                + joiner
+                + "wechat_openid="
+                + quote(str(wechat_openid or ""), safe="")
+            )
+            rewritten.append(copy)
+
+        return rewritten
+    except Exception:
+        logger.exception("rewrite today articles to batch h5 failed")
+        return articles
+
 def route(
     to_user: str,
     from_user: str,
@@ -257,6 +325,7 @@ def route(
                 (to_user or "")[-8:],
                 len(articles),
             )
+            articles = _rewrite_today_articles_to_batch_h5(articles, to_user)
             return build_news_response(to_user, from_user, articles)
 
         if not fallback_text:

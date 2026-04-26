@@ -107,7 +107,8 @@
   "url": {
     "promotion_redirect_path_template": "/promotion/redirect?wechat_openid={wechat_openid}&product_id={product_id}&scene={scene}&slot={slot}",
     "recommend_h5_path_template": "/h5/recommend/{product_id}?scene={scene}&slot={slot}",
-    "more_like_this_path_template": "/h5/recommend/more-like-this?product_id={product_id}&scene={scene}&slot={slot}"
+    "more_like_this_path_template": "/h5/recommend/more-like-this?product_id={product_id}&scene={scene}&slot={slot}",
+    "today_batch_h5_path_template": "/h5/recommend/batch?ids={ids}&focus_id={focus_id}&scene={scene}&slot={slot}"
   },
   "labels": {
     "buy": "下单链接",

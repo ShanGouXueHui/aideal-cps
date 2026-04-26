@@ -152,5 +152,31 @@
     "item_rank_prefix": "同类推荐",
     "sales_prefix": "热销",
     "price_separator": "｜"
+  },
+  "h5_batch": {
+    "title": "今日推荐 3 个优选好物",
+    "subtitle": "你刚点开的商品已排在最前面；同批另外 2 个也一起展示，方便直接对比。",
+    "eyebrow": "本次推荐",
+    "focus_badge": "你刚点开的商品",
+    "normal_badge": "同批推荐",
+    "empty_title": "本次推荐商品暂时不可用",
+    "empty_desc": "可以回到公众号，再点一次“今日推荐”刷新一组。",
+    "labels": {
+      "match": "推荐位置",
+      "price": "价格优势",
+      "price_note": "价格说明",
+      "sales": "购买热度",
+      "comments": "用户评价",
+      "good_rate": "好评率",
+      "category": "商品品类",
+      "shop": "店铺信息",
+      "reason": "推荐理由",
+      "buy": "点击我去京东快捷下单",
+      "detail": "查看商品详情"
+    },
+    "sections": {
+      "price_note": "先到先得，看得见的优惠；点开下单页可看到当前可用券和实时到手价。",
+      "footer_note": "本 AI 助手是京东导购产品，主要帮助你做更值、更省、更省心的筛选和推荐。下单在京东官网完成，享受京东正常客户服务。"
+    }
   }
 }
