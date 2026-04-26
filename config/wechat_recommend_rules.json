@@ -151,9 +151,38 @@
       "social_proof": "这款已有较高购买热度，说明不是冷门小众入口；对不想花太多时间筛选的用户，更适合作为优先比较项。",
       "shop_trust": "这款店铺信息相对清晰，适合希望少踩坑、省心下单的用户优先查看。",
       "balanced": "这款在价格、热度和店铺信息上相对均衡，适合先作为本轮对比候选；觉得不合适可以继续看更多类似商品。"
-    }
+    },
+    "first_title": "首批今日优选好物推荐",
+    "next_title": "新一批今日优选好物推荐",
+    "price_label": "价格优势",
+    "info_title": "商品信息",
+    "reason_title": "推荐理由",
+    "buy_button": "点击我去京东快捷下单",
+    "more_button": "更多类似商品",
+    "empty_title": "当前推荐商品暂不可用",
+    "empty_desc": "可以回到公众号继续点击“今日推荐”，我会重新给你换一批。"
   },
   "price_display": {
-    "prefer_verified_in_recommendation": true
+    "prefer_verified_in_recommendation": true,
+    "show_db_price_when_available": true,
+    "numeric_main_template": "到手约¥{purchase}｜京东官网价¥{basis}｜可省¥{saved}｜热销{sales_text}",
+    "numeric_main_template_no_sales": "到手约¥{purchase}｜京东官网价¥{basis}｜可省¥{saved}",
+    "single_price_template": "到手约¥{purchase}｜热销{sales_text}",
+    "single_price_template_no_sales": "到手约¥{purchase}",
+    "live_main_template": "热销{sales_text}｜点开看当前可用券",
+    "live_main_no_sales": "点开看当前可用券",
+    "numeric_sub_text": "先到先得，看得见的优惠；库存、地区和优惠券以京东下单页可领取状态为准。",
+    "live_sub_text": "点开京东下单页可看到当前可用券、实时到手价和库存。",
+    "sales_unit": "+",
+    "sales_wan_unit": "万+"
+  },
+  "commercial_reason": {
+    "discount_shop_sales": "品牌/店铺确定性更高，当前有可对比价差，也有购买热度；如符合当前需求，建议入手。",
+    "discount_sales": "当前有可对比价差，也有购买热度；如符合当前需求，建议入手。",
+    "discount": "当前价格优势清晰，适合需要这类商品时直接入手。",
+    "shop_sales": "品牌/店铺确定性更高，已有购买热度；如符合当前需求，建议入手。",
+    "sales": "已有购买热度，适合想省时间筛选时直接查看；符合需求可以入手。",
+    "shop": "品牌/店铺确定性更高，适合对品质和售后稳定性有要求的用户优先入手。",
+    "fallback": "商品信息、销量和店铺维度已完成初步筛选；如符合当前需求，可以入手。"
   }
 }

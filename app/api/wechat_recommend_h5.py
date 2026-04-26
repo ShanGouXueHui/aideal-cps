@@ -9,7 +9,7 @@ from app.core.db import SessionLocal
 from app.services.wechat_recommend_runtime_service import (
     get_product_by_id,
     render_more_like_this_h5,
-    render_recommend_batch_h5,
+    render_today_batch_h5,
     render_product_h5,
 )
 
@@ -77,7 +77,7 @@ async def recommend_batch_page(
     db = SessionLocal()
     try:
         return HTMLResponse(
-            render_recommend_batch_h5(
+            render_today_batch_h5(
                 db,
                 ids=ids,
                 focus_id=int(focus_id or 0),

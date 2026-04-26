@@ -320,6 +320,166 @@ def _saved_rate(product: Product) -> float:
         return saved / price
     return 0.0
 
+def _price_display_cfg() -> dict[str, Any]:
+    val = _cfg().get("price_display") or {}
+    return val if isinstance(val, dict) else {}
+
+
+def _money_text(value: float) -> str:
+    try:
+        num = float(value or 0)
+    except Exception:
+        return "0"
+    if abs(num - int(num)) < 0.000001:
+        return str(int(num))
+    return f"{num:.2f}".rstrip("0").rstrip(".")
+
+
+def _sales_display_text(product: Product) -> str:
+    cfg = _price_display_cfg()
+    sales = _to_int(getattr(product, "sales_volume", None))
+    if sales <= 0:
+        return ""
+    if sales >= 10000:
+        return f"{sales // 10000}{cfg.get('sales_wan_unit') or '万+'}"
+    return f"{sales}{cfg.get('sales_unit') or '+'}"
+
+
+def _price_snapshot_for_display(product: Product) -> dict[str, Any]:
+    jd_price = _to_float(getattr(product, "price", None))
+    coupon_price = _to_float(getattr(product, "coupon_price", None))
+    purchase_price = _to_float(getattr(product, "purchase_price", None))
+    basis_price = _to_float(getattr(product, "basis_price", None))
+
+    purchase = purchase_price if purchase_price > 0 else 0.0
+    if purchase <= 0 and coupon_price > 0:
+        purchase = coupon_price
+    if purchase <= 0 and jd_price > 0:
+        purchase = jd_price
+
+    basis = basis_price if basis_price > 0 else jd_price
+    saved = round(basis - purchase, 2) if basis > 0 and purchase > 0 and purchase < basis else 0.0
+
+    return {
+        "purchase": purchase,
+        "basis": basis,
+        "saved": saved,
+        "has_compare_price": bool(purchase > 0 and basis > 0 and saved > 0),
+        "has_single_price": bool(purchase > 0),
+        "sales_text": _sales_display_text(product),
+    }
+
+
+def _fmt_tpl(template: str, **kwargs: Any) -> str:
+    try:
+        return str(template or "").format(**kwargs)
+    except Exception:
+        return str(template or "")
+
+
+def _price_advantage_text(product: Product) -> tuple[str, str]:
+    cfg = _price_display_cfg()
+    snap = _price_snapshot_for_display(product)
+    sales_text = str(snap.get("sales_text") or "")
+
+    if snap.get("has_compare_price"):
+        key = "numeric_main_template" if sales_text else "numeric_main_template_no_sales"
+        main = _fmt_tpl(
+            cfg.get(key) or "到手约¥{purchase}｜京东官网价¥{basis}｜可省¥{saved}",
+            purchase=_money_text(float(snap["purchase"])),
+            basis=_money_text(float(snap["basis"])),
+            saved=_money_text(float(snap["saved"])),
+            sales_text=sales_text,
+        )
+        return main, str(cfg.get("numeric_sub_text") or "先到先得，看得见的优惠；库存、地区和优惠券以京东下单页可领取状态为准。")
+
+    if snap.get("has_single_price"):
+        key = "single_price_template" if sales_text else "single_price_template_no_sales"
+        main = _fmt_tpl(
+            cfg.get(key) or "到手约¥{purchase}",
+            purchase=_money_text(float(snap["purchase"])),
+            sales_text=sales_text,
+        )
+        return main, str(cfg.get("numeric_sub_text") or "先到先得，看得见的优惠；库存、地区和优惠券以京东下单页可领取状态为准。")
+
+    if sales_text:
+        return _fmt_tpl(
+            cfg.get("live_main_template") or "热销{sales_text}｜点开看当前可用券",
+            sales_text=sales_text,
+        ), str(cfg.get("live_sub_text") or "点开京东下单页可看到当前可用券、实时到手价和库存。")
+
+    return str(cfg.get("live_main_no_sales") or "点开看当前可用券"), str(cfg.get("live_sub_text") or "点开京东下单页可看到当前可用券、实时到手价和库存。")
+
+
+def _price_advantage_main(product: Product) -> str:
+    return _price_advantage_text(product)[0]
+
+
+def _price_advantage_sub(product: Product) -> str:
+    return _price_advantage_text(product)[1]
+
+
+def _format_price_line(product: Product) -> str:
+    return _price_advantage_main(product)
+
+
+def _news_value_line(product: Product) -> str:
+    return _price_advantage_main(product)
+
+
+def _commercial_reason(product: Product) -> str:
+    cfg = _cfg().get("commercial_reason") or {}
+    cfg = cfg if isinstance(cfg, dict) else {}
+    snap = _price_snapshot_for_display(product)
+
+    sales = _to_int(getattr(product, "sales_volume", None))
+    has_sales = sales >= 300
+    has_shop = _is_flagship_or_self_operated(product) or bool(_shop_name(product))
+
+    if snap.get("has_compare_price") and has_shop and has_sales:
+        return str(cfg.get("discount_shop_sales") or "品牌/店铺确定性更高，当前有可对比价差，也有购买热度；如符合当前需求，建议入手。")
+    if snap.get("has_compare_price") and has_sales:
+        return str(cfg.get("discount_sales") or "当前有可对比价差，也有购买热度；如符合当前需求，建议入手。")
+    if snap.get("has_compare_price"):
+        return str(cfg.get("discount") or "当前价格优势清晰，适合需要这类商品时直接入手。")
+    if has_shop and has_sales:
+        return str(cfg.get("shop_sales") or "品牌/店铺确定性更高，已有购买热度；如符合当前需求，建议入手。")
+    if has_sales:
+        return str(cfg.get("sales") or "已有购买热度，适合想省时间筛选时直接查看；符合需求可以入手。")
+    if has_shop:
+        return str(cfg.get("shop") or "品牌/店铺确定性更高，适合对品质和售后稳定性有要求的用户优先入手。")
+    return str(cfg.get("fallback") or "商品信息、销量和店铺维度已完成初步筛选；如符合当前需求，可以入手。")
+
+
+def _compact_reason(product: Product) -> str:
+    return _commercial_reason(product)
+
+
+def _recommend_reason_short(product: Product) -> str:
+    return _commercial_reason(product)
+
+
+def _today_batch_title(db: Session, *, wechat_openid: str) -> str:
+    cfg = _cfg().get("today_batch_h5") or {}
+    cfg = cfg if isinstance(cfg, dict) else {}
+    first_title = str(cfg.get("first_title") or "首批今日优选好物推荐")
+    next_title = str(cfg.get("next_title") or "新一批今日优选好物推荐")
+
+    try:
+        openid_hash = _openid_key(wechat_openid)
+        exposure_count = (
+            db.query(WechatRecommendExposure.product_id)
+            .filter(
+                WechatRecommendExposure.openid_hash == openid_hash,
+                WechatRecommendExposure.scene == "today_recommend",
+            )
+            .count()
+        )
+        return next_title if exposure_count > 3 else first_title
+    except Exception:
+        return first_title
+
+
 
 def _shop_name(product: Product) -> str:
     return str(getattr(product, "shop_name", "") or "").strip()
@@ -541,39 +701,8 @@ def has_find_entry_product(db: Session) -> bool:
     return _find_entry_product(db, wechat_openid="compat_check_openid") is not None
 
 
-def _format_price_line(product: Product) -> str:
-    price = _to_float(getattr(product, "price", None))
-    effective = _effective_price(product)
-    saved = _saved_amount(product)
-
-    if price > 0 and effective > 0 and effective < price:
-        return f"优惠价￥{effective:.2f}｜京东官网价￥{price:.2f}｜立省￥{saved:.2f}"
-    if effective > 0:
-        return f"到手参考￥{effective:.2f}｜以下单页实时信息为准"
-    if price > 0:
-        return f"价格￥{price:.2f}｜以下单页实时信息为准"
-    return "价格以下单页实时信息为准"
 
 
-def _commercial_reason(product: Product) -> str:
-    saved = _saved_amount(product)
-    saved_rate = _saved_rate(product)
-    sales = _to_int(getattr(product, "sales_volume", None))
-    merchant = _to_float(getattr(product, "merchant_health_score", None))
-    flagship = _is_flagship_or_self_operated(product)
-
-    if saved >= 20 or saved_rate >= 0.25:
-        if sales >= 100:
-            return "价差已经拉开，也有人在买，属于更适合先点开实时页、再决定下不下单的商品。"
-        return "这类商品更适合先冲着省钱去看实时页：先确认到手价，再决定是否下单，决策成本最低。"
-
-    if sales >= 1000:
-        return "这类商品更吃“从众+省心”心理：销量基础更稳，不想反复比价时更适合先看实时页。"
-
-    if flagship or merchant >= 85:
-        return "店铺确定性更高，适合想省心下单时优先看一眼，先确认当前到手门槛再决定。"
-
-    return "信息已经比较完整，适合先看实时页面，再决定是否下单，不必先花时间做无效比较。"
 
 
 
@@ -595,40 +724,6 @@ def _compact_price_line(product: Product, ultra: bool = False) -> str:
     return line
 
 
-def _compact_reason(product: Product) -> str:
-    title = (getattr(product, "title", "") or "")
-    saved_amount = 0.0
-    for key in ("saved_amount", "discount_amount", "saved_price"):
-        val = getattr(product, key, None)
-        try:
-            if val is not None:
-                saved_amount = float(val)
-                break
-        except Exception:
-            pass
-
-    comments = 0
-    for key in ("comments", "comment_count"):
-        val = getattr(product, key, None)
-        try:
-            if val is not None:
-                comments = int(val)
-                break
-        except Exception:
-            pass
-
-    shop_name = (getattr(product, "shop_name", "") or "")
-    lower_title = title.lower()
-
-    if saved_amount >= 20:
-        return "价差更明显，先点开看实时页更容易判断值不值。"
-    if comments >= 10000:
-        return "评论沉淀更足，适合想省筛选时间时直接看。"
-    if "自营" in title or "旗舰" in shop_name:
-        return "店铺确定性更高，适合想省心下单的人。"
-    if "儿童" in title or "宝宝" in title or "母婴" in lower_title:
-        return "这类商品更偏省心决策，先看详情再下单更稳。"
-    return "信息已经比较完整，适合先看详情后再决定。"
 
 
 
@@ -832,21 +927,6 @@ def _html_shell(title: str, body: str) -> str:
 """.strip()
 
 
-def _recommend_reason_short(product: Product) -> str:
-    saved = _saved_amount(product)
-    sales = _to_int(getattr(product, "sales_volume", None))
-    merchant = _to_float(getattr(product, "merchant_health_score", None))
-    flagship = _is_flagship_or_self_operated(product)
-
-    if saved >= 20 and sales >= 1000:
-        return _copy_text("h5_reason_templates", "high_save_hot", "价差已经拉开，销量也稳，适合直接看实时到手价。")
-    if saved >= 10:
-        return _copy_text("h5_reason_templates", "high_save", "当前有明显价差，先看实时页确认到手门槛更划算。")
-    if sales >= 10000:
-        return _copy_text("h5_reason_templates", "hot", "这类商品销量更稳，适合少比价、先看实时页。")
-    if flagship or merchant >= 85:
-        return _copy_text("h5_reason_templates", "flagship", "店铺确定性更高，适合想省心下单时优先看一眼。")
-    return _copy_text("h5_reason_templates", "default", "信息已经比较完整，先看实时页再决定是否下单。")
 
 
 def _recommend_reason_tags(product: Product) -> list[str]:
@@ -1033,8 +1113,8 @@ def render_product_h5(product: Product, *, scene: str = "", slot: str = "", wech
             price_main_raw = text("price_unverified_main_no_sales")
         price_sub_raw = text("price_unverified_subtitle")
 
-    value_html = c(price_main_raw)
-    price_line_html = c(price_sub_raw)
+    value_html = c(_price_advantage_main(product))
+    price_line_html = c(_price_advantage_sub(product))
     reason_html = c(_recommend_reason_short(product))
 
     image_candidates = [
@@ -1363,6 +1443,170 @@ def render_recommend_batch_h5(
 </body>
 </html>"""
 
+
+def render_today_batch_h5(
+    db: Session,
+    *,
+    ids: str = "",
+    focus_id: str | int = "",
+    scene: str = "",
+    slot: str = "",
+    wechat_openid: str = "",
+    **kwargs: Any,
+) -> str:
+    cfg = _cfg().get("today_batch_h5") or {}
+    cfg = cfg if isinstance(cfg, dict) else {}
+
+    raw_ids = ids or kwargs.get("product_ids") or kwargs.get("product_id_list") or ""
+    if isinstance(raw_ids, (list, tuple)):
+        id_list = [int(x) for x in raw_ids if str(x).strip().isdigit()]
+    else:
+        id_list = [int(x) for x in re.findall(r"\d+", str(raw_ids or ""))]
+
+    seen: set[int] = set()
+    clean_ids: list[int] = []
+    for pid in id_list:
+        if pid > 0 and pid not in seen:
+            clean_ids.append(pid)
+            seen.add(pid)
+
+    products: list[Product] = []
+    if clean_ids:
+        rows = db.query(Product).filter(Product.id.in_(clean_ids)).all()
+        by_id = {int(row.id): row for row in rows}
+        products = [by_id[pid] for pid in clean_ids if pid in by_id]
+
+    if not products:
+        title = html.escape(str(cfg.get("empty_title") or "当前推荐商品暂不可用"))
+        desc = html.escape(str(cfg.get("empty_desc") or "可以回到公众号继续点击“今日推荐”，我会重新给你换一批。"))
+        return f"""<!doctype html>
+<html lang="zh-CN">
+<head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><title>{title}</title></head>
+<body style="margin:0;background:#f6f7fb;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;color:#0f172a;">
+  <div style="max-width:760px;margin:0 auto;padding:18px 14px;">
+    <div style="background:#fff;border-radius:20px;padding:18px;box-shadow:0 8px 28px rgba(15,23,42,.07);">
+      <h1 style="font-size:22px;line-height:1.4;margin:0 0 10px;">{title}</h1>
+      <div style="color:#64748b;line-height:1.8;">{desc}</div>
+    </div>
+  </div>
+</body>
+</html>"""
+
+    try:
+        focus_int = int(focus_id or 0)
+    except Exception:
+        focus_int = 0
+    if focus_int:
+        products = sorted(products, key=lambda p: 0 if int(p.id) == focus_int else 1)
+
+    page_title = _today_batch_title(db, wechat_openid=wechat_openid)
+    price_label = str(cfg.get("price_label") or "价格优势")
+    info_title = str(cfg.get("info_title") or "商品信息")
+    reason_title = str(cfg.get("reason_title") or "推荐理由")
+    buy_text = str(cfg.get("buy_button") or "点击我去京东快捷下单")
+    more_text = str(cfg.get("more_button") or "更多类似商品")
+    scene_val = str(scene or "today_recommend")
+
+    def c(value: object) -> str:
+        return html.escape(html.unescape(str(value or "")), quote=True)
+
+    def info_rows(product: Product) -> str:
+        rows: list[tuple[str, str]] = []
+        sales_text = _sales_display_text(product)
+        comments = _to_int(getattr(product, "comment_count", None))
+        good_rate_raw = _to_float(getattr(product, "good_comments_share", None))
+        if good_rate_raw > 0 and good_rate_raw <= 1:
+            good_rate_raw = good_rate_raw * 100
+        good_rate = f"{good_rate_raw:.1f}%".rstrip("0").rstrip(".") if good_rate_raw > 0 else ""
+        category = str(getattr(product, "category_name", "") or "").strip()
+        shop = str(getattr(product, "shop_name", "") or "").strip()
+
+        if sales_text:
+            rows.append(("购买热度", sales_text))
+        if comments > 0:
+            rows.append(("用户评价", f"{comments // 10000}万+" if comments >= 10000 else f"{comments}+"))
+        if good_rate:
+            rows.append(("好评率", good_rate))
+        if category:
+            rows.append(("商品品类", category))
+        if shop:
+            rows.append(("店铺信息", shop))
+
+        return "".join(
+            f'<div class="kv"><span>{c(k)}</span><strong>{c(v)}</strong></div>'
+            for k, v in rows
+            if str(v).strip()
+        )
+
+    cards: list[str] = []
+    for idx, product in enumerate(products, start=1):
+        title = c(str(getattr(product, "title", "") or getattr(product, "sku_name", "") or "优选商品"))
+        img = _product_pic_url(product)
+        img_html = f'<img class="product-img" src="{c(img)}" alt="{title}" />' if img else ""
+        card_slot = idx
+        buy_url = _promotion_url(product, wechat_openid=wechat_openid, scene=scene_val, slot=card_slot)
+        more_url = _more_like_this_url(product, scene=scene_val, slot=card_slot, wechat_openid=wechat_openid)
+        price_main = c(_price_advantage_main(product))
+        price_sub = c(_price_advantage_sub(product))
+        reason = c(_commercial_reason(product))
+        grid = info_rows(product)
+
+        cards.append(f"""
+        <div class="card">
+          {img_html}
+          <div class="title product-title">{title}</div>
+          <div class="pricebox">
+            <div class="price-main">{c(price_label)}：{price_main}</div>
+            <div class="price-sub">{price_sub}</div>
+          </div>
+          <div class="section-title">{c(info_title)}</div>
+          <div class="grid">{grid}</div>
+          <div class="section-title">{c(reason_title)}</div>
+          <div class="reason">{reason}</div>
+          <div class="card-actions">
+            <a class="btn btn-primary" href="{c(buy_url)}">{c(buy_text)}</a>
+            <a class="btn btn-secondary" href="{c(more_url)}">{c(more_text)}</a>
+          </div>
+        </div>
+        """.strip())
+
+    return f"""<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>{c(page_title)}</title>
+  <style>
+    body{{margin:0;background:#f6f7fb;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;color:#0f172a;}}
+    .wrap{{max-width:760px;margin:0 auto;padding:16px 14px 40px;}}
+    .page-title{{font-size:23px;font-weight:900;line-height:1.35;margin:2px 2px 16px;letter-spacing:-.2px;}}
+    .card{{background:#fff;border-radius:20px;padding:16px;box-shadow:0 8px 28px rgba(15,23,42,.07);margin-bottom:14px;}}
+    .title{{font-size:21px;font-weight:850;line-height:1.42;margin:0;letter-spacing:-.2px;}}
+    .product-img{{width:100%;border-radius:18px;background:#fff;object-fit:cover;display:block;margin-bottom:12px;}}
+    .product-title{{margin-bottom:10px;}}
+    .pricebox{{margin-top:12px;padding:14px;border-radius:16px;background:#fff7ed;color:#9a3412;}}
+    .price-main{{font-size:18px;font-weight:900;line-height:1.55;}}
+    .price-sub{{margin-top:6px;font-size:13px;color:#9a3412;line-height:1.65;}}
+    .grid{{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px;}}
+    .kv{{background:#f8fafc;border-radius:14px;padding:10px;min-height:48px;}}
+    .kv span{{display:block;color:#64748b;font-size:12px;line-height:1.4;}}
+    .kv strong{{display:block;margin-top:4px;color:#0f172a;font-size:15px;line-height:1.4;word-break:break-word;}}
+    .section-title{{font-size:16px;font-weight:850;margin:14px 0 8px;}}
+    .reason{{color:#334155;line-height:1.85;font-size:15px;}}
+    .card-actions{{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px;}}
+    .btn{{display:block;text-align:center;padding:12px 14px;border-radius:14px;text-decoration:none;font-weight:850;font-size:15px;}}
+    .btn-primary{{background:#0f172a;color:#fff;min-width:168px;}}
+    .btn-secondary{{background:#e2e8f0;color:#0f172a;min-width:118px;}}
+    @media (max-width:420px){{.grid{{grid-template-columns:1fr 1fr;gap:8px;}}.title{{font-size:19px;}}.page-title{{font-size:22px;}}.btn{{font-size:14px;padding:12px 10px;}}}}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1 class="page-title">{c(page_title)}</h1>
+    {"".join(cards)}
+  </div>
+</body>
+</html>"""
 
 def render_more_like_this_h5(
     db: Session,
@@ -1712,24 +1956,6 @@ def _sales_volume_label(product: Product) -> str:
         return f"热销{sales / 10000:.1f}万+".replace(".0万+", "万+")
     return f"热销{sales}+"
 
-def _news_value_line(product: Product) -> str:
-    saved = _saved_amount(product)
-    effective = _effective_price(product)
-    sales_text = _sales_volume_label(product)
-
-    if saved > 0:
-        if saved >= 10:
-            left = f"省¥{saved:.0f}"
-        else:
-            left = f"省¥{saved:.2f}".rstrip("0").rstrip(".")
-    elif effective > 0:
-        left = f"到手¥{effective:.2f}".rstrip("0").rstrip(".")
-    else:
-        left = "点开看实时价"
-
-    if sales_text:
-        return f"{left}｜{sales_text}"
-    return left
 
 def _news_description_for_product(product: Product) -> str:
     text = _news_value_line(product).replace("\n", " ").strip()
