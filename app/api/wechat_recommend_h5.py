@@ -8,7 +8,6 @@ import html
 from app.core.db import SessionLocal
 from app.services.wechat_recommend_runtime_service import (
     get_product_by_id,
-    _select_scene_batch,
     render_more_like_this_h5,
     render_today_batch_h5,
     render_product_h5,
@@ -98,43 +97,13 @@ async def recommend_more_like_this_page(
     slot: str = Query(default=""),
     wechat_openid: str = Query(default=""),
 ):
-    """Canonical more-like-this page.
-
-    Hard stop for the legacy H5 test branch. This endpoint must render through
-    the same batch H5 renderer as 今日推荐, not the old test search page.
-    """
     db = SessionLocal()
     try:
-        openid = wechat_openid or f"more_like_this_{int(product_id)}"
-        products = _select_scene_batch(
-            db,
-            wechat_openid=openid,
-            scene="today_recommend",
-            limit=3,
-        )
-
-        if not products:
-            product = get_product_by_id(db, int(product_id))
-            if not product:
-                return HTMLResponse("<h3>商品不存在</h3>", status_code=404)
-            return HTMLResponse(
-                render_product_h5(
-                    product,
-                    scene=scene or "more_like_this",
-                    slot=slot,
-                    wechat_openid=wechat_openid,
-                )
-            )
-
-        ids = ",".join(str(int(p.id)) for p in products)
-        focus_id = int(products[0].id)
-
         return HTMLResponse(
-            render_today_batch_h5(
+            render_more_like_this_h5(
                 db,
-                ids=ids,
-                focus_id=focus_id,
-                scene=scene or "more_like_this",
+                product_id=int(product_id),
+                scene=scene,
                 slot=slot,
                 wechat_openid=wechat_openid,
             )

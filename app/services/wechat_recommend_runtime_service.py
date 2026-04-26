@@ -170,26 +170,19 @@ def _filter_commercial_proactive_pool(products: list[Product]) -> list[Product]:
 
 
 
-
 def _prioritize_price_verified_products(products: list[Product]) -> list[Product]:
-    """Prioritize real shopping value, not merely whether price was checked.
-
-    price_verified_at only means a product was checked. It is not a value signal.
-    """
+    """Prefer products with refreshed/exact JD price snapshot before user-facing recommendation."""
     price_display_cfg = _cfg().get("price_display") or {}
     if isinstance(price_display_cfg, dict) and not price_display_cfg.get("prefer_verified_in_recommendation", True):
         return products
 
-    def rank(product: Product) -> tuple[int, float, float, float, int, int]:
-        snap = _price_snapshot_for_display(product)
-        official = _to_float(snap.get("official_price"))
-        saved = _to_float(snap.get("saved_amount"))
-        saved_rate = (saved / official) if official > 0 and saved > 0 else 0.0
-        exact_discount = 1 if bool(getattr(product, "is_exact_discount", False)) and saved > 0 else 0
+    def rank(product: Product) -> tuple[int, int, float, int, int]:
+        exact = 1 if bool(getattr(product, "is_exact_discount", False)) and bool(getattr(product, "price_verified_at", None)) else 0
+        verified = 1 if bool(getattr(product, "price_verified_at", None)) else 0
         score = _score(product)
         sales = _to_int(getattr(product, "sales_volume", None))
         pid = _to_int(getattr(product, "id", None))
-        return exact_discount, saved_rate, saved, score, sales, pid
+        return exact, verified, score, sales, pid
 
     return sorted(products, key=rank, reverse=True)
 
@@ -414,48 +407,35 @@ def _h5_price_format_template(key: str, **kwargs: object) -> str:
         return ""
 
 def _price_snapshot_for_display(product: Product) -> dict[str, Any]:
-    """Canonical user-facing price snapshot.
+    """Canonical H5 price snapshot.
 
-    Landing-page-safe rule:
-    - Do not expose coupon-derived purchasePrice/lowestCouponPrice as the big
-      "到手约" price unless the current redirect can guarantee the coupon landing.
-    - For coupon-derived snapshots, show the JD visible page price first, and
-      keep coupon savings out of ranking/display to avoid mismatch with JD page.
+    One branch only:
+    1. Prefer exact JD verified purchase/basis price when available.
+    2. Otherwise use JD catalog price/coupon_price already stored in DB.
+    3. If official and purchase are both known, always expose official price
+       and saved amount, including saved=0, so users can make a concrete decision.
     """
     purchase_price = _to_float(getattr(product, "purchase_price", None))
     basis_price = _to_float(getattr(product, "basis_price", None))
     jd_price = _to_float(getattr(product, "price", None))
     coupon_price = _to_float(getattr(product, "coupon_price", None))
-    coupon_text = str(getattr(product, "coupon_info", "") or "").strip()
-
-    exact_candidate = (
-        bool(getattr(product, "is_exact_discount", False))
-        and bool(getattr(product, "price_verified_at", None))
-    )
-    coupon_derived = (
-        bool(coupon_text)
-        and purchase_price > 0
-        and basis_price > purchase_price
-    )
+    exact = bool(getattr(product, "is_exact_discount", False)) and bool(getattr(product, "price_verified_at", None))
 
     display_purchase = 0.0
     display_official = 0.0
     source = "catalog"
 
-    if exact_candidate and purchase_price > 0 and not coupon_derived:
+    if exact and purchase_price > 0:
         display_purchase = purchase_price
         display_official = basis_price if basis_price > 0 else jd_price
         source = "exact"
     else:
-        # Conservative fallback: align with the visible JD landing page price.
-        if jd_price > 0:
-            display_purchase = jd_price
-        elif coupon_price > 0 and not coupon_derived:
+        if coupon_price > 0 and (jd_price <= 0 or coupon_price <= jd_price):
             display_purchase = coupon_price
-        elif purchase_price > 0 and not coupon_derived:
+        elif purchase_price > 0:
             display_purchase = purchase_price
-        elif basis_price > 0:
-            display_purchase = basis_price
+        elif jd_price > 0:
+            display_purchase = jd_price
         elif coupon_price > 0:
             display_purchase = coupon_price
 
@@ -463,8 +443,6 @@ def _price_snapshot_for_display(product: Product) -> dict[str, Any]:
 
     if display_official <= 0 and basis_price > 0:
         display_official = basis_price
-    if display_official <= 0 and display_purchase > 0:
-        display_official = display_purchase
 
     if display_official > 0 and display_purchase > 0 and display_official < display_purchase:
         display_official = display_purchase
@@ -472,8 +450,6 @@ def _price_snapshot_for_display(product: Product) -> dict[str, Any]:
     saved_amount = 0.0
     if display_official > 0 and display_purchase > 0:
         saved_amount = max(display_official - display_purchase, 0.0)
-
-    exact_for_display = source == "exact" and saved_amount > 0
 
     return {
         "purchase_price": display_purchase,
@@ -485,7 +461,7 @@ def _price_snapshot_for_display(product: Product) -> dict[str, Any]:
         "has_official_price": display_official > 0,
         "has_saved_amount": display_official > 0 and display_purchase > 0,
         "has_compare_price": saved_amount > 0,
-        "is_exact": exact_for_display,
+        "is_exact": exact,
         "source": source,
     }
 
@@ -507,12 +483,6 @@ def _price_advantage_text(product: Product) -> tuple[str, str]:
     official = _to_float(snap.get("official_price"))
     saved = _to_float(snap.get("saved_amount"))
 
-    # Business display order: savings first, then current price, official price, heat.
-    if purchase > 0 and official > 0 and saved > 0:
-        value = _h5_price_format_template("saved_template", saved=saved)
-        if value:
-            parts.append(value)
-
     if purchase > 0:
         value = _h5_price_format_template("purchase_template", purchase=purchase)
         if value:
@@ -523,7 +493,7 @@ def _price_advantage_text(product: Product) -> tuple[str, str]:
         if value:
             parts.append(value)
 
-    if purchase > 0 and official > 0 and saved <= 0:
+    if purchase > 0 and official > 0:
         value = _h5_price_format_template("saved_template", saved=saved)
         if value:
             parts.append(value)
@@ -540,11 +510,7 @@ def _price_advantage_text(product: Product) -> tuple[str, str]:
     if bool(snap.get("is_exact")):
         sub = _h5_price_display_text("price_note_verified") or _h5_price_display_text("price_note")
     else:
-        sub = (
-            _h5_price_display_text("price_note_landing_safe")
-            or _h5_price_display_text("price_note_catalog")
-            or _h5_price_display_text("price_note")
-        )
+        sub = _h5_price_display_text("price_note_catalog") or _h5_price_display_text("price_note")
 
     return main, sub
 
@@ -665,11 +631,7 @@ def _active_recommend_products(db: Session) -> list[Product]:
 
 
 def _score(product: Product) -> float:
-    snap = _price_snapshot_for_display(product)
-    official = _to_float(snap.get("official_price"))
-    saved = _to_float(snap.get("saved_amount"))
-    saved_rate = (saved / official) if official > 0 and saved > 0 else 0.0
-
+    saved_rate = _saved_rate(product)
     sales = _to_float(getattr(product, "sales_volume", None))
     merchant = _to_float(getattr(product, "merchant_health_score", None))
     flagship = 1.0 if _is_flagship_or_self_operated(product) else 0.0
@@ -787,60 +749,6 @@ def _pick_diverse(products: list[Product], limit: int) -> list[Product]:
     return picked
 
 
-
-def _has_visible_price_saving(product: Product) -> bool:
-    snap = _price_snapshot_for_display(product)
-    return (
-        _to_float(snap.get("purchase_price")) > 0
-        and _to_float(snap.get("official_price")) > 0
-        and _to_float(snap.get("saved_amount")) > 0
-    )
-
-
-def _refresh_selected_products_for_reply(
-    db: Session,
-    products: list[Product],
-    *,
-    scene: str,
-) -> list[Product]:
-    """Refresh prices before any WeChat-visible copy is generated.
-
-    The JD price parser and H5 renderer are already canonical. This function is
-    only the boundary guard between selection and outbound WeChat text/news copy,
-    so service-account text and H5 use the same refreshed product snapshot.
-    """
-    if not products:
-        return []
-
-    try:
-        from app.services.jd_price_freshness_service import refresh_product_price_if_stale
-    except Exception:
-        return products
-
-    refreshed: list[Product] = []
-    for product in products:
-        try:
-            refreshed_product = refresh_product_price_if_stale(
-                db,
-                product,
-                trigger=scene,
-                force=True,
-            )
-            refreshed.append(refreshed_product or product)
-        except Exception:
-            try:
-                db.rollback()
-            except Exception:
-                pass
-            refreshed.append(product)
-
-    try:
-        db.flush()
-    except Exception:
-        pass
-
-    return _prioritize_price_verified_products(refreshed)
-
 def _sorted_candidates(db: Session) -> list[Product]:
     return sorted(
         _active_recommend_products(db),
@@ -866,12 +774,7 @@ def _select_scene_batch(db: Session, *, wechat_openid: str, scene: str, limit: i
         _reset_scene_exposures(db, openid_hash=openid_hash, scene=scene)
         fresh = list(products)
 
-    candidate_limit = max(limit * 8, 24)
-    candidate_pool = _pick_diverse(fresh, candidate_limit)
-    refreshed_pool = _refresh_selected_products_for_reply(db, candidate_pool, scene=scene)
-    discounted = [p for p in refreshed_pool if _has_visible_price_saving(p)]
-    fallback = [p for p in refreshed_pool if p not in discounted]
-    batch = _pick_diverse(discounted + fallback, limit)
+    batch = _pick_diverse(fresh, limit)
     return batch[:limit]
 
 
