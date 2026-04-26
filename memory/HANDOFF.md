@@ -856,3 +856,32 @@
 
 最新强约束文档见：`docs/ops/ENGINEERING_GUARDRAILS.md`。
 <!-- END 2026-04-26 历史口径纠偏说明 -->
+
+<!-- START 2026-04-26 H5商品详情转化页升级 -->
+## 2026-04-26 H5商品详情转化页升级
+
+本次将商品 H5 详情页从简单 News 展开页升级为购买决策承接页。
+
+当前已验证：
+
+1. `/h5/recommend/{product_id}` 公网返回 200 HTML。
+2. 页面包含商品图片、标题、价格优势、店铺信息、推荐理由、放心下单前提示、京东快捷下单按钮、更多类似商品按钮。
+3. `/h5/recommend/more-like-this` 公网返回 200 HTML。
+4. `/promotion/redirect` 公网能够 302 跳转到京东联盟短链或京东页面。
+5. 页面和链接继续遵守 no-api 路径原则，不使用 `/api/h5/recommend` 或 `/api/promotion/redirect`。
+6. H5 按钮文案、找商品入口文案和转化提示来自配置文件 `config/wechat_find_product_entry.json`，不得写死进 Python。
+
+当前实现文件：
+
+- H5 渲染：`app/services/wechat_recommend_runtime_service.py`
+- H5 配置：`config/wechat_find_product_entry.json`
+- 公网路由模块模板：`ops/nginx/aideal_public_backend_routes.conf`
+
+后续如果 H5 或京东跳转异常，优先检查：
+
+1. Nginx 是否 include `/etc/nginx/snippets/aideal_public_backend_routes.conf`。
+2. `/h5/recommend/`、`/promotion/`、`/users/` 是否在静态站点 `/h5/` 和 `/` 路由之前。
+3. 商品是否有有效 `short_url` / `material_url` / `product_url`。
+
+不要回退到 News 详情展开页，也不要恢复 `/api` 用户可见路径。
+<!-- END 2026-04-26 H5商品详情转化页升级 -->

@@ -878,29 +878,72 @@ def _same_reason_text(*, same_shop: bool, same_brand: bool, same_cat: bool, same
 
 def render_product_h5(product: Product, *, scene: str = "", slot: str = "", wechat_openid: str = "") -> str:
     from app.services.wechat_find_product_entry_config_service import load_find_product_entry_config
-    _find_entry_cfg = load_find_product_entry_config()
-    _h5_buttons = _find_entry_cfg.get("h5_buttons") if isinstance(_find_entry_cfg.get("h5_buttons"), dict) else {}
-    h5_buy_button_text = str(_h5_buttons.get("buy") or "")
-    h5_more_button_text = str(_h5_buttons.get("more") or "")
-    # H5_BUTTON_COPY_CONFIG_GATE
-    def _clean(value: object) -> str:
+
+    cfg = load_find_product_entry_config()
+    h5_cfg = cfg.get("h5_detail") if isinstance(cfg.get("h5_detail"), dict) else {}
+    labels = h5_cfg.get("labels") if isinstance(h5_cfg.get("labels"), dict) else {}
+    sections = h5_cfg.get("sections") if isinstance(h5_cfg.get("sections"), dict) else {}
+    badges = h5_cfg.get("badges") if isinstance(h5_cfg.get("badges"), dict) else {}
+    empty = h5_cfg.get("empty") if isinstance(h5_cfg.get("empty"), dict) else {}
+    button_cfg = cfg.get("h5_buttons") if isinstance(cfg.get("h5_buttons"), dict) else {}
+
+    def c(value: object) -> str:
         return html.escape(html.unescape(str(value or "")), quote=True)
 
-    title_raw = html.unescape(str(getattr(product, "title", "") or getattr(product, "sku_name", "") or "商品详情"))
-    title_html = _clean(title_raw)
-    value_html = _clean(_news_value_line(product))
-    price_html = _clean(_format_price_line(product))
-    reason_html = _clean(_recommend_reason_short(product))
-    section_reason_title = _clean(_copy_text("section_copy", "h5_reason_title", "为什么值得看"))
-    price_prefix = _clean(_copy_text("section_copy", "h5_price_prefix", "到手参考："))
+    def label(key: str) -> str:
+        return str(labels.get(key) or key).strip()
 
-    shop_name = html.unescape(str(getattr(product, "shop_name", "") or getattr(product, "merchant_name", "") or ""))
-    shop_html = f'<div class="meta">店铺：{_clean(shop_name)}</div>' if shop_name else ""
+    def text(section_key: str) -> str:
+        return str(sections.get(section_key) or "").strip()
 
-    tags = _recommend_reason_tags(product)
-    badges_html = ""
-    if tags:
-        badges_html = '<div class="badges">' + "".join(f'<span class="badge">{_clean(x)}</span>' for x in tags) + '</div>'
+    def empty_text(key: str) -> str:
+        return str(empty.get(key) or "").strip()
+
+    def first_attr(*names: str) -> object:
+        for name in names:
+            value = getattr(product, name, None)
+            if value not in (None, ""):
+                return value
+        return ""
+
+    def num_text(value: object) -> str:
+        n = _to_int(value)
+        if n <= 0:
+            return ""
+        if n >= 10000:
+            return f"{n // 10000}万+"
+        return f"{n}+"
+
+    def rate_text(value: object) -> str:
+        try:
+            raw = float(value or 0)
+        except Exception:
+            return ""
+        if raw <= 0:
+            return ""
+        if raw <= 1:
+            raw = raw * 100
+        return f"{raw:.1f}%".rstrip("0").rstrip(".")
+
+    title_raw = html.unescape(str(getattr(product, "title", "") or getattr(product, "sku_name", "") or label("detail_title")))
+    title_html = c(title_raw)
+
+    category = str(first_attr("category_name", "category", "cid_name") or "")
+    shop_name = str(first_attr("shop_name", "merchant_name", "vendor_name") or "")
+    shop_score = str(first_attr("shop_score", "shop_rating", "shop_star", "dsr_score", "score") or "")
+    shop_sales = num_text(first_attr("shop_sales_volume", "shop_order_count", "shop_total_sales", "total_sales", "order_count"))
+    sales = num_text(first_attr("sales_volume", "order_count_30d", "in_order_count_30_days", "monthly_sales", "comment_count"))
+    comments = num_text(first_attr("comment_count", "comments_count", "review_count", "good_comments"))
+    good_rate = rate_text(first_attr("good_comment_rate", "good_comments_share", "positive_rate", "good_rate"))
+
+    price_value = _effective_price(product)
+    saved_value = _saved_amount(product)
+    price_display = f"¥{price_value:g}" if price_value > 0 else empty_text("unknown")
+    saved_display = f"¥{saved_value:g}" if saved_value > 0 else empty_text("no_saved")
+
+    value_html = c(_news_value_line(product))
+    price_line_html = c(_format_price_line(product))
+    reason_html = c(_recommend_reason_short(product))
 
     image_candidates = [
         getattr(product, "image_url", ""),
@@ -909,10 +952,41 @@ def render_product_h5(product: Product, *, scene: str = "", slot: str = "", wech
         getattr(product, "white_image", ""),
     ]
     hero_url = next((str(x).strip() for x in image_candidates if str(x or "").strip()), "")
-    hero_html = f'<img class="hero" src="{_clean(hero_url)}" alt="{title_html}" />' if hero_url else ""
+    hero_html = f'<img class="hero" src="{c(hero_url)}" alt="{title_html}" />' if hero_url else ""
 
     detail_scene = str(scene or "today_recommend")
     detail_slot = str(slot or "1")
+    buy_url = _promotion_url(product, scene=detail_scene, slot=detail_slot, wechat_openid=wechat_openid)
+    more_url = _more_like_this_url(product, scene=detail_scene, slot=detail_slot, wechat_openid=wechat_openid)
+    buy_text = str(button_cfg.get("buy") or label("buy")).strip()
+    more_text = str(button_cfg.get("more") or label("more")).strip()
+
+    badge_keys = ["price", "sales", "shop", "ai"]
+    badges_html = "".join(
+        f'<span class="badge">{c(badges.get(k) or "")}</span>'
+        for k in badge_keys
+        if str(badges.get(k) or "").strip()
+    )
+
+    info_rows = [
+        (label("estimated_price"), price_display),
+        (label("saved"), saved_display),
+        (label("sales"), sales or empty_text("no_sales")),
+        (label("comments"), comments or empty_text("no_comments")),
+        (label("good_rate"), good_rate or empty_text("no_comments")),
+        (label("category"), category or empty_text("unknown")),
+        (label("shop"), shop_name or empty_text("unknown")),
+        (label("shop_score"), shop_score or empty_text("no_shop_score")),
+        (label("shop_sales"), shop_sales or empty_text("no_shop_sales")),
+    ]
+    info_html = "".join(
+        f'<div class="kv"><span>{c(k)}</span><strong>{c(v)}</strong></div>'
+        for k, v in info_rows
+        if str(v or "").strip()
+    )
+
+    decision_items = [text("decision_1"), text("decision_2"), text("decision_3")]
+    decision_html = "".join(f"<li>{c(x)}</li>" for x in decision_items if x)
 
     return f"""<!doctype html>
 <html lang="zh-CN">
@@ -921,22 +995,30 @@ def render_product_h5(product: Product, *, scene: str = "", slot: str = "", wech
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <title>{title_html}</title>
   <style>
-    body{{margin:0;background:#f8fafc;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;color:#0f172a;}}
-    .wrap{{max-width:760px;margin:0 auto;padding:18px 16px 40px;}}
-    .card{{background:#fff;border-radius:20px;padding:18px;box-shadow:0 6px 24px rgba(15,23,42,.06);margin-bottom:16px;}}
-    .title{{font-size:22px;font-weight:800;line-height:1.5;margin:14px 0 0;}}
-    .meta{{margin-top:10px;color:#64748b;line-height:1.8;font-size:14px;}}
-    .price{{margin-top:14px;padding:14px;border-radius:14px;background:#fff7ed;color:#9a3412;line-height:1.8;font-weight:800;font-size:18px;}}
-    .price-detail{{margin-top:10px;color:#64748b;line-height:1.8;font-size:14px;}}
-    .reason-title{{margin-top:14px;font-size:14px;font-weight:800;color:#0f172a;}}
-    .reason{{margin-top:8px;color:#334155;line-height:1.8;}}
-    .hero{{width:100%;border-radius:16px;background:#fff;object-fit:cover;display:block;}}
+    body{{margin:0;background:#f6f7fb;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;color:#0f172a;}}
+    .wrap{{max-width:760px;margin:0 auto;padding:14px 14px 88px;}}
+    .card{{background:#fff;border-radius:20px;padding:16px;box-shadow:0 8px 28px rgba(15,23,42,.07);margin-bottom:14px;}}
+    .hero{{width:100%;border-radius:18px;background:#fff;object-fit:cover;display:block;}}
+    .title{{font-size:21px;font-weight:850;line-height:1.42;margin:14px 0 0;letter-spacing:-.2px;}}
+    .subtitle{{margin-top:10px;color:#64748b;line-height:1.75;font-size:14px;}}
     .badges{{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;}}
-    .badge{{display:inline-flex;align-items:center;padding:6px 10px;border-radius:999px;background:#f1f5f9;color:#334155;font-size:12px;font-weight:700;}}
-    .actions{{display:flex;gap:10px;flex-wrap:wrap;margin-top:16px;}}
-    .btn{{display:inline-block;padding:12px 16px;border-radius:12px;text-decoration:none;font-weight:700;}}
-    .btn-primary{{background:#0f172a;color:#fff;}}
-    .btn-secondary{{background:#e2e8f0;color:#0f172a;}}
+    .badge{{display:inline-flex;align-items:center;padding:6px 10px;border-radius:999px;background:#eef2ff;color:#3730a3;font-size:12px;font-weight:750;}}
+    .pricebox{{margin-top:14px;padding:14px;border-radius:16px;background:#fff7ed;color:#9a3412;}}
+    .price-main{{font-size:20px;font-weight:900;line-height:1.5;}}
+    .price-sub{{margin-top:6px;font-size:13px;color:#9a3412;line-height:1.65;}}
+    .grid{{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px;}}
+    .kv{{background:#f8fafc;border-radius:14px;padding:10px;min-height:48px;}}
+    .kv span{{display:block;color:#64748b;font-size:12px;line-height:1.4;}}
+    .kv strong{{display:block;margin-top:4px;color:#0f172a;font-size:15px;line-height:1.4;word-break:break-word;}}
+    .section-title{{font-size:16px;font-weight:850;margin:0 0 10px;}}
+    .reason{{color:#334155;line-height:1.85;font-size:15px;}}
+    .decision{{margin:0;padding-left:20px;color:#334155;line-height:1.9;font-size:15px;}}
+    .risk{{margin-top:10px;color:#64748b;line-height:1.75;font-size:13px;}}
+    .actions{{position:fixed;left:0;right:0;bottom:0;background:rgba(255,255,255,.96);backdrop-filter:blur(10px);box-shadow:0 -8px 24px rgba(15,23,42,.08);padding:10px 14px calc(10px + env(safe-area-inset-bottom));display:flex;gap:10px;justify-content:center;}}
+    .btn{{display:block;text-align:center;padding:13px 14px;border-radius:14px;text-decoration:none;font-weight:850;font-size:15px;}}
+    .btn-primary{{background:#0f172a;color:#fff;min-width:168px;}}
+    .btn-secondary{{background:#e2e8f0;color:#0f172a;min-width:118px;}}
+    @media (max-width:420px){{.grid{{grid-template-columns:1fr 1fr;gap:8px;}}.title{{font-size:19px;}}.btn{{font-size:14px;padding:12px 10px;}}}}
   </style>
 </head>
 <body>
@@ -944,17 +1026,34 @@ def render_product_h5(product: Product, *, scene: str = "", slot: str = "", wech
     <div class="card">
       {hero_html}
       <div class="title">{title_html}</div>
-      {shop_html}
-      <div class="price">{value_html}</div>
-      <div class="price-detail">{price_prefix}{price_html}</div>
-      {badges_html}
-      <div class="reason-title">{section_reason_title}</div>
-      <div class="reason">{reason_html}</div>
-      <div class="actions">
-        <a class="btn btn-primary" href="{_promotion_url(product, scene=detail_scene, slot=detail_slot, wechat_openid=wechat_openid)}">{h5_buy_button_text}</a>
-        <a class="btn btn-secondary" href="{_more_like_this_url(product, scene=detail_scene, slot=detail_slot, wechat_openid=wechat_openid)}">{h5_more_button_text}</a>
+      <div class="subtitle">{c(text("subtitle"))}</div>
+      <div class="badges">{badges_html}</div>
+      <div class="pricebox">
+        <div class="price-main">{c(label("price_advantage"))}：{value_html}</div>
+        <div class="price-sub">{c(label("estimated_price"))}：{price_line_html}。{c(text("price_note"))}</div>
       </div>
     </div>
+
+    <div class="card">
+      <div class="section-title">{c(label("detail_title"))}</div>
+      <div class="grid">{info_html}</div>
+    </div>
+
+    <div class="card">
+      <div class="section-title">{c(label("reason_title"))}</div>
+      <div class="reason">{reason_html}</div>
+    </div>
+
+    <div class="card">
+      <div class="section-title">{c(label("decision_title"))}</div>
+      <ul class="decision">{decision_html}</ul>
+      <div class="risk">{c(text("risk_note"))}</div>
+    </div>
+  </div>
+
+  <div class="actions">
+    <a class="btn btn-primary" href="{c(buy_url)}">{c(buy_text)}</a>
+    <a class="btn btn-secondary" href="{c(more_url)}">{c(more_text)}</a>
   </div>
 </body>
 </html>"""
