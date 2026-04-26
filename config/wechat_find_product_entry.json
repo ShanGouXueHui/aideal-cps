@@ -180,5 +180,16 @@
       "price_note": "先到先得，看得见的优惠；点开下单页可看到当前可用券和实时到手价。",
       "footer_note": "本 AI 助手是京东导购产品，主要帮助你做更值、更省、更省心的筛选和推荐。下单在京东官网完成，享受京东正常客户服务。"
     }
+  },
+  "h5_price_display": {
+    "separator": "｜",
+    "purchase_template": "到手约¥{purchase}",
+    "official_template": "京东官网价¥{official}",
+    "saved_template": "可省¥{saved}",
+    "sales_template": "热销{sales}",
+    "fallback_price": "点开京东看实时券价",
+    "price_note": "先到先得，看得见的优惠；库存、地区和优惠券以京东下单页可领取状态为准。",
+    "price_note_verified": "先到先得，看得见的优惠；价格已通过京东接口刷新，库存、地区和优惠券以京东下单页可领取状态为准。",
+    "price_note_catalog": "先到先得，看得见的优惠；库存、地区和优惠券以京东下单页可领取状态为准。"
   }
 }

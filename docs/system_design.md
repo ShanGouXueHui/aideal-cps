@@ -1051,3 +1051,15 @@ AIdeal CPS（智省优选）是基于微信服务号的 AI 导购 + 京东联盟
 5. 继续保留无 `/api` 公网路径：`/h5/recommend/batch`、`/h5/recommend/...`、`/promotion/redirect`。
 
 <!-- END 2026-04-27 今日推荐 Batch H5 路由收口 -->
+
+<!-- START 2026-04-27 H5价格优势强制展示官网价与可省金额 -->
+## 2026-04-27 H5价格优势强制展示官网价与可省金额
+
+本次修正找商品详情页与今日推荐 batch H5 的价格展示口径：
+
+1. 价格优势统一展示：到手约、京东官网价、可省金额、热销信息。
+2. 优先使用京东精确刷新字段；若精确字段尚未补齐，则使用入库时 JD 商品池返回的 `price/coupon_price` 做展示。
+3. 只要到手价与官网价均存在，即使可省为 0，也展示 `可省¥0`，避免页面只显示到手价导致用户无法判断。
+4. 找商品详情页与今日推荐 batch H5 共用同一套 `_price_advantage_text()`，不得再分叉维护。
+5. 文案模板来自 `config/wechat_find_product_entry.json` 与 `config/wechat_recommend_rules.json` 的 `h5_price_display`，不在 Python 中写死业务文案。
+<!-- END 2026-04-27 H5价格优势强制展示官网价与可省金额 -->

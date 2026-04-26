@@ -345,28 +345,109 @@ def _sales_display_text(product: Product) -> str:
     return f"{sales}{cfg.get('sales_unit') or '+'}"
 
 
+def _h5_price_display_cfg() -> dict[str, Any]:
+    """Unified H5 price display copy config.
+
+    Business copy must come from config/wechat_find_product_entry.json or
+    config/wechat_recommend_rules.json. Runtime only formats values.
+    """
+    merged: dict[str, Any] = {}
+
+    find_cfg = _load_json_file(CONFIG_DIR / "wechat_find_product_entry.json")
+    find_price_cfg = find_cfg.get("h5_price_display")
+    if isinstance(find_price_cfg, dict):
+        merged.update(find_price_cfg)
+
+    rules_price_cfg = _cfg().get("h5_price_display")
+    if isinstance(rules_price_cfg, dict):
+        merged.update(rules_price_cfg)
+
+    return merged
+
+def _h5_price_display_text(key: str, default: str = "") -> str:
+    cfg = _h5_price_display_cfg()
+    value = cfg.get(key)
+    if value is None:
+        return default
+    return str(value).strip()
+
+def _h5_price_money(value: object) -> str:
+    amount = _to_float(value)
+    if amount <= 0:
+        return ""
+    text = f"{amount:.2f}".rstrip("0").rstrip(".")
+    return text
+
+def _h5_price_format_template(key: str, **kwargs: object) -> str:
+    template = _h5_price_display_text(key)
+    if not template:
+        return ""
+    normalized = {
+        k: (_h5_price_money(v) if k in {"purchase", "official", "saved"} else str(v or ""))
+        for k, v in kwargs.items()
+    }
+    try:
+        return template.format(**normalized)
+    except Exception:
+        return ""
+
 def _price_snapshot_for_display(product: Product) -> dict[str, Any]:
-    jd_price = _to_float(getattr(product, "price", None))
-    coupon_price = _to_float(getattr(product, "coupon_price", None))
+    """Canonical H5 price snapshot.
+
+    One branch only:
+    1. Prefer exact JD verified purchase/basis price when available.
+    2. Otherwise use JD catalog price/coupon_price already stored in DB.
+    3. If official and purchase are both known, always expose official price
+       and saved amount, including saved=0, so users can make a concrete decision.
+    """
     purchase_price = _to_float(getattr(product, "purchase_price", None))
     basis_price = _to_float(getattr(product, "basis_price", None))
+    jd_price = _to_float(getattr(product, "price", None))
+    coupon_price = _to_float(getattr(product, "coupon_price", None))
+    exact = bool(getattr(product, "is_exact_discount", False)) and bool(getattr(product, "price_verified_at", None))
 
-    purchase = purchase_price if purchase_price > 0 else 0.0
-    if purchase <= 0 and coupon_price > 0:
-        purchase = coupon_price
-    if purchase <= 0 and jd_price > 0:
-        purchase = jd_price
+    display_purchase = 0.0
+    display_official = 0.0
+    source = "catalog"
 
-    basis = basis_price if basis_price > 0 else jd_price
-    saved = round(basis - purchase, 2) if basis > 0 and purchase > 0 and purchase < basis else 0.0
+    if exact and purchase_price > 0:
+        display_purchase = purchase_price
+        display_official = basis_price if basis_price > 0 else jd_price
+        source = "exact"
+    else:
+        if coupon_price > 0 and (jd_price <= 0 or coupon_price <= jd_price):
+            display_purchase = coupon_price
+        elif purchase_price > 0:
+            display_purchase = purchase_price
+        elif jd_price > 0:
+            display_purchase = jd_price
+        elif coupon_price > 0:
+            display_purchase = coupon_price
+
+        display_official = jd_price if jd_price > 0 else basis_price
+
+    if display_official <= 0 and basis_price > 0:
+        display_official = basis_price
+
+    if display_official > 0 and display_purchase > 0 and display_official < display_purchase:
+        display_official = display_purchase
+
+    saved_amount = 0.0
+    if display_official > 0 and display_purchase > 0:
+        saved_amount = max(display_official - display_purchase, 0.0)
 
     return {
-        "purchase": purchase,
-        "basis": basis,
-        "saved": saved,
-        "has_compare_price": bool(purchase > 0 and basis > 0 and saved > 0),
-        "has_single_price": bool(purchase > 0),
-        "sales_text": _sales_display_text(product),
+        "purchase_price": display_purchase,
+        "official_price": display_official,
+        "basis_price": display_official,
+        "saved_amount": saved_amount,
+        "delta": saved_amount,
+        "has_price": display_purchase > 0,
+        "has_official_price": display_official > 0,
+        "has_saved_amount": display_official > 0 and display_purchase > 0,
+        "has_compare_price": saved_amount > 0,
+        "is_exact": exact,
+        "source": source,
     }
 
 
@@ -378,37 +459,45 @@ def _fmt_tpl(template: str, **kwargs: Any) -> str:
 
 
 def _price_advantage_text(product: Product) -> tuple[str, str]:
-    cfg = _price_display_cfg()
     snap = _price_snapshot_for_display(product)
-    sales_text = str(snap.get("sales_text") or "")
+    separator = _h5_price_display_text("separator", "｜")
+    sales_line = _sales_display_text(product)
 
-    if snap.get("has_compare_price"):
-        key = "numeric_main_template" if sales_text else "numeric_main_template_no_sales"
-        main = _fmt_tpl(
-            cfg.get(key) or "到手约¥{purchase}｜京东官网价¥{basis}｜可省¥{saved}",
-            purchase=_money_text(float(snap["purchase"])),
-            basis=_money_text(float(snap["basis"])),
-            saved=_money_text(float(snap["saved"])),
-            sales_text=sales_text,
-        )
-        return main, str(cfg.get("numeric_sub_text") or "先到先得，看得见的优惠；库存、地区和优惠券以京东下单页可领取状态为准。")
+    parts: list[str] = []
+    purchase = _to_float(snap.get("purchase_price"))
+    official = _to_float(snap.get("official_price"))
+    saved = _to_float(snap.get("saved_amount"))
 
-    if snap.get("has_single_price"):
-        key = "single_price_template" if sales_text else "single_price_template_no_sales"
-        main = _fmt_tpl(
-            cfg.get(key) or "到手约¥{purchase}",
-            purchase=_money_text(float(snap["purchase"])),
-            sales_text=sales_text,
-        )
-        return main, str(cfg.get("numeric_sub_text") or "先到先得，看得见的优惠；库存、地区和优惠券以京东下单页可领取状态为准。")
+    if purchase > 0:
+        value = _h5_price_format_template("purchase_template", purchase=purchase)
+        if value:
+            parts.append(value)
 
-    if sales_text:
-        return _fmt_tpl(
-            cfg.get("live_main_template") or "热销{sales_text}｜点开看当前可用券",
-            sales_text=sales_text,
-        ), str(cfg.get("live_sub_text") or "点开京东下单页可看到当前可用券、实时到手价和库存。")
+    if official > 0:
+        value = _h5_price_format_template("official_template", official=official)
+        if value:
+            parts.append(value)
 
-    return str(cfg.get("live_main_no_sales") or "点开看当前可用券"), str(cfg.get("live_sub_text") or "点开京东下单页可看到当前可用券、实时到手价和库存。")
+    if purchase > 0 and official > 0:
+        value = _h5_price_format_template("saved_template", saved=saved)
+        if value:
+            parts.append(value)
+
+    if sales_line:
+        value = _h5_price_format_template("sales_template", sales=sales_line)
+        if value:
+            parts.append(value)
+
+    main = separator.join([x for x in parts if str(x).strip()])
+    if not main:
+        main = _h5_price_display_text("fallback_price")
+
+    if bool(snap.get("is_exact")):
+        sub = _h5_price_display_text("price_note_verified") or _h5_price_display_text("price_note")
+    else:
+        sub = _h5_price_display_text("price_note_catalog") or _h5_price_display_text("price_note")
+
+    return main, sub
 
 
 def _price_advantage_main(product: Product) -> str:
@@ -437,18 +526,18 @@ def _commercial_reason(product: Product) -> str:
     has_shop = _is_flagship_or_self_operated(product) or bool(_shop_name(product))
 
     if snap.get("has_compare_price") and has_shop and has_sales:
-        return str(cfg.get("discount_shop_sales") or "品牌/店铺确定性更高，当前有可对比价差，也有购买热度；如符合当前需求，建议入手。")
+        return str(cfg.get("discount_shop_sales") or "").strip()
     if snap.get("has_compare_price") and has_sales:
-        return str(cfg.get("discount_sales") or "当前有可对比价差，也有购买热度；如符合当前需求，建议入手。")
+        return str(cfg.get("discount_sales") or "").strip()
     if snap.get("has_compare_price"):
-        return str(cfg.get("discount") or "当前价格优势清晰，适合需要这类商品时直接入手。")
+        return str(cfg.get("discount") or "").strip()
     if has_shop and has_sales:
-        return str(cfg.get("shop_sales") or "品牌/店铺确定性更高，已有购买热度；如符合当前需求，建议入手。")
+        return str(cfg.get("shop_sales") or "").strip()
     if has_sales:
-        return str(cfg.get("sales") or "已有购买热度，适合想省时间筛选时直接查看；符合需求可以入手。")
+        return str(cfg.get("sales") or "").strip()
     if has_shop:
-        return str(cfg.get("shop") or "品牌/店铺确定性更高，适合对品质和售后稳定性有要求的用户优先入手。")
-    return str(cfg.get("fallback") or "商品信息、销量和店铺维度已完成初步筛选；如符合当前需求，可以入手。")
+        return str(cfg.get("shop") or "").strip()
+    return str(cfg.get("fallback") or "").strip()
 
 
 def _compact_reason(product: Product) -> str:
