@@ -1657,3 +1657,40 @@ P3 当前新增：
 5. 价格刷新任务仍按推荐池后台刷新 + 首次打开尝试刷新执行，但展示层必须以精确校验结果为准。
 <!-- END 2026-04-27 价格展示精确校验闭环 -->
 
+<!-- START 2026-04-27 推荐价格刷新闭环最终口径 -->
+## 2026-04-27 推荐价格刷新闭环最终口径
+
+本次已将京东价格刷新闭环并入推荐主链路，避免用户侧 H5 价格与京东下单页价格不一致。
+
+最终口径：
+
+1. 新入库佣金商品在 `jd_product_sync_service.normalize_jd_item()` 阶段，直接从京东 `priceInfo` 写入价格快照：
+   - `purchase_price`
+   - `basis_price`
+   - `basis_price_type`
+   - `is_exact_discount`
+   - `price_verified_at`
+
+2. 后台推荐主任务 `run_nightly_catalog_refresh.py` 不只刷新商品池和白名单，也会调用价格补齐逻辑，持续刷新推荐池商品价格。
+
+3. 推荐排序优先使用已刷新价格的商品；已通过精确价差验证的商品优先级更高。
+
+4. H5 价格展示强约束：
+   - 只有 `is_exact_discount=True` 且 `price_verified_at` 存在时，才展示“优惠价 / 京东官网价 / 立省金额”等确定数字。
+   - 未通过精确价差验证时，不展示可能过期的旧价格，只提示用户点开京东查看实时券价、库存和到手价。
+   - 这样可以避免为了转化而展示不准确价格，损害用户信任。
+
+5. 产品方向：
+   - 未来数据库可沉淀十万级高品质佣金商品。
+   - 后台线程按推荐排名优先刷新高价值商品价格。
+   - 新入库商品应尽量在入库时就带价格快照。
+   - 随着后台任务持续运行，推荐池价格覆盖率会自然补齐，不应要求用户每次单独触发实时读取。
+
+6. 已验证：
+   - `NEW_PRODUCT_PRICE_SNAPSHOT_GATE_OK`
+   - `CATALOG_PRICE_MAIN_PIPELINE_GATE_OK`
+   - `RECOMMEND_PRICE_VERIFIED_PRIORITY_GATE_OK`
+   - `POST_RESTART_PRICE_PRIORITY_GATE_OK`
+
+当前提交：`a4aace6 fix(wechat): close price freshness loop in recommendation pipeline`
+<!-- END 2026-04-27 推荐价格刷新闭环最终口径 -->
