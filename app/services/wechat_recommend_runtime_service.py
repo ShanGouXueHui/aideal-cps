@@ -157,6 +157,105 @@ def _is_commercial_proactive_candidate(product: Product) -> bool:
     return True
 
 
+
+def _identity_norm_text(value) -> str:
+    text = str(value or "").lower()
+    text = re.sub(r"\s+", "", text)
+    text = re.sub(r"[【】\[\]（）()，,。:：;；|｜\-_/·•★☆]", "", text)
+    return text
+
+
+def _identity_title_core(value) -> str:
+    text = _identity_norm_text(value)
+
+    # 去掉常见规格/数量/容量/颜色等尾部差异，保留“同款核心”。
+    text = re.sub(
+        r"\d+(\.\d+)?(kg|g|克|斤|ml|毫升|l|升|片|抽|包|杯|只|瓶|袋|盒|支|条|卷|件|套|个|cm|mm|英寸|寸)",
+        "",
+        text,
+    )
+    text = re.sub(r"\d+", "", text)
+    text = re.sub(r"(黑色|白色|灰色|蓝色|粉色|绿色|红色|黄色|紫色|标准码|加大码|大号|中号|小号|体验装|家庭装|组合装|套装)", "", text)
+    return text[:36]
+
+
+def _material_identity_tail(value) -> str:
+    url = str(value or "").strip()
+    url = url.replace("https://", "").replace("http://", "").split("?")[0]
+    match = re.search(r"/detail/([^./]+)", url)
+    if not match:
+        return ""
+    key = match.group(1)
+    if "_" in key:
+        key = key.rsplit("_", 1)[-1]
+    return key if len(key) >= 10 else ""
+
+
+def _image_identity_tail(value) -> str:
+    url = str(value or "").strip().split("?")[0]
+    if not url:
+        return ""
+    tail = url[-56:]
+    if len(tail) < 24:
+        return ""
+    return tail
+
+
+def _product_identity_tokens(product) -> set[str]:
+    """Display-level identity tokens for recommendation dedupe.
+
+    This is intentionally a presentation/recommendation-layer concept:
+    - not a JD communication contract;
+    - not a DB primary key;
+    - not a user-global dedupe key.
+
+    Any shared strong token means two rows should not be shown together in one
+    recommendation surface, because users perceive them as the same or near-same item.
+    """
+    if product is None:
+        return set()
+
+    tokens: set[str] = set()
+
+    sku = str(getattr(product, "jd_sku_id", "") or "").strip()
+    if len(sku) >= 6:
+        tokens.add(f"sku:{sku}")
+
+    material_tail = _material_identity_tail(getattr(product, "material_url", None))
+    if material_tail:
+        tokens.add(f"material:{material_tail}")
+
+    image_tail = _image_identity_tail(getattr(product, "image_url", None))
+    if image_tail:
+        tokens.add(f"image:{image_tail}")
+
+    title_exact = _identity_norm_text(getattr(product, "title", None))
+    if len(title_exact) >= 12:
+        tokens.add(f"title_exact:{title_exact[:52]}")
+
+    title_core = _identity_title_core(getattr(product, "title", None))
+    shop = _identity_norm_text(getattr(product, "shop_name", None))[:18]
+    category = _identity_norm_text(getattr(product, "category_name", None))[:18]
+    if len(title_core) >= 10:
+        tokens.add(f"title_core:{shop}:{category}:{title_core}")
+
+    return tokens
+
+
+def _dedupe_products_by_identity(products: list[Product]) -> list[Product]:
+    """Remove near-duplicate products while preserving current ranking order."""
+    selected: list[Product] = []
+    seen_tokens: set[str] = set()
+
+    for product in products:
+        tokens = _product_identity_tokens(product)
+        if tokens and (tokens & seen_tokens):
+            continue
+        selected.append(product)
+        seen_tokens.update(tokens)
+
+    return selected
+
 def _filter_commercial_proactive_pool(products: list[Product]) -> list[Product]:
     cfg = _proactive_recommend_cfg()
     if not cfg.get("enabled", True):
@@ -630,7 +729,9 @@ def _active_recommend_products(db: Session) -> list[Product]:
     if merchant_recommendable is not None:
         q = q.filter(merchant_recommendable == True)
     rows = q.all()
-    return _prioritize_price_verified_products(_filter_commercial_proactive_pool(rows))
+    return _dedupe_products_by_identity(
+        _prioritize_price_verified_products(_filter_commercial_proactive_pool(rows))
+    )
 
 
 def _score(product: Product) -> float:
@@ -1837,7 +1938,12 @@ def render_more_like_this_h5(
             f'<div class="card"><div class="title">{c(not_found_title)}</div><div class="meta">{c(not_found_desc)}</div></div>',
         )
 
-    rows = [x for x in _active_recommend_products(db) if int(x.id) != int(product_id)]
+    base_identity_tokens = _product_identity_tokens(base_product)
+    rows = [
+        x for x in _active_recommend_products(db)
+        if int(x.id) != int(product_id)
+        and not (_product_identity_tokens(x) & base_identity_tokens)
+    ]
 
     base_cat = _category_key(base_product)
     base_shop = _shop_key(base_product)
