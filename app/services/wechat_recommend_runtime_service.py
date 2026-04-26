@@ -1099,77 +1099,162 @@ def render_more_like_this_h5(
     slot: str = "",
     wechat_openid: str = "",
 ) -> str:
-    base_product = get_product_by_id(db, int(product_id))
-    if not base_product:
-        return _html_shell("商品不存在", '<div class="card"><div class="title">商品不存在</div></div>')
+    from app.services.wechat_find_product_entry_config_service import load_find_product_entry_config
 
-    rows = [x for x in _active_recommend_products(db) if int(x.id) != int(product_id)]
+    cfg = load_find_product_entry_config()
+    more_cfg = cfg.get("h5_more_like_this") if isinstance(cfg.get("h5_more_like_this"), dict) else {}
+    labels = more_cfg.get("labels") if isinstance(more_cfg.get("labels"), dict) else {}
+    match_labels = more_cfg.get("match_reasons") if isinstance(more_cfg.get("match_reasons"), dict) else {}
 
-    generic_tokens = {
-        "京东", "自营", "官方", "旗舰", "旗舰店", "品牌", "品牌店", "专卖店", "专营店",
-        "商品", "礼盒", "套装", "活动", "家用", "便携", "ml", "l", "kg", "g", "盒", "袋", "瓶", "支", "片",
-    }
+    def c(value: object) -> str:
+        return html.escape(html.unescape(str(value or "")), quote=True)
 
-    def _norm_tokens(text: str) -> list[str]:
+    def label(key: str, fallback: str = "") -> str:
+        return str(labels.get(key) or fallback or key).strip()
+
+    def cfg_text(key: str, fallback: str = "") -> str:
+        return str(more_cfg.get(key) or fallback).strip()
+
+    def first_attr(product: Product, *names: str) -> object:
+        for name in names:
+            value = getattr(product, name, None)
+            if value not in (None, ""):
+                return value
+        return ""
+
+    def image_url(product: Product) -> str:
+        for key in ("image_url", "main_image_url", "image", "white_image"):
+            val = str(getattr(product, key, "") or "").strip()
+            if val:
+                return val
+        return ""
+
+    def num_text(value: object) -> str:
+        n = _to_int(value)
+        if n <= 0:
+            return ""
+        if n >= 10000:
+            return f"{n // 10000}万+"
+        return f"{n}+"
+
+    def rate_text(value: object) -> str:
+        try:
+            raw = float(value or 0)
+        except Exception:
+            return ""
+        if raw <= 0:
+            return ""
+        if raw <= 1:
+            raw = raw * 100
+        return f"{raw:.1f}%".rstrip("0").rstrip(".")
+
+    def safe_price_line(product: Product) -> tuple[str, str]:
+        exact = bool(getattr(product, "is_exact_discount", False))
+        purchase = _to_float(getattr(product, "purchase_price", None))
+        basis = _to_float(getattr(product, "basis_price", None))
+        saved = max(basis - purchase, 0.0) if basis > 0 and purchase > 0 else 0.0
+        sales_line = num_text(first_attr(product, "sales_volume", "order_count_30d", "in_order_count_30_days", "monthly_sales"))
+        sep = cfg_text("price_separator")
+
+        if exact and purchase > 0 and basis > purchase:
+            main = f"优惠价¥{purchase:g}｜立省¥{saved:g}"
+            if sales_line:
+                main = f"{main}｜{cfg_text('sales_prefix')}{sales_line}"
+            return main, cfg_text("price_note_verified")
+
+        fallback = cfg_text("fallback_price_line")
+        if sales_line:
+            return f"{cfg_text('sales_prefix')}{sales_line}{sep}{fallback}", cfg_text("price_note_realtime")
+        return fallback, cfg_text("price_note_realtime")
+
+    raw_stopwords = more_cfg.get("similar_stopwords")
+    stopwords = {str(x).strip().lower() for x in raw_stopwords if str(x).strip()} if isinstance(raw_stopwords, list) else set()
+
+    def norm_tokens(text: str) -> list[str]:
         raw = re.findall(r"[a-z0-9\u4e00-\u9fff]+", str(text or "").lower())
         out: list[str] = []
         for tok in raw:
             if tok.isdigit() or len(tok) < 2:
                 continue
-            if tok in generic_tokens:
+            if tok in stopwords:
                 continue
             out.append(tok)
         return out
 
-    def _brand_tokens(product: Product) -> set[str]:
+    def brand_tokens(product: Product) -> set[str]:
         out: set[str] = set()
         shop = _shop_key(product)
         if shop:
             out.add(shop)
         title = str(getattr(product, "title", "") or "")
-        for tok in _norm_tokens(title):
+        for tok in norm_tokens(title):
             out.add(tok)
-            if len(out) >= 6:
+            if len(out) >= 8:
                 break
         return out
 
+    def match_reason_text(*, same_shop: bool, same_brand: bool, same_cat: bool, same_use: bool) -> str:
+        if same_shop:
+            return str(match_labels.get("same_shop") or "")
+        if same_brand:
+            return str(match_labels.get("same_brand") or "")
+        if same_cat:
+            return str(match_labels.get("same_category") or "")
+        if same_use:
+            return str(match_labels.get("same_use") or "")
+        return str(match_labels.get("fallback") or "")
+
+    base_product = get_product_by_id(db, int(product_id))
+    if not base_product:
+        not_found_title = cfg_text("base_not_found_title")
+        not_found_desc = cfg_text("base_not_found_desc")
+        return _html_shell(
+            not_found_title,
+            f'<div class="card"><div class="title">{c(not_found_title)}</div><div class="meta">{c(not_found_desc)}</div></div>',
+        )
+
+    rows = [x for x in _active_recommend_products(db) if int(x.id) != int(product_id)]
+
     base_cat = _category_key(base_product)
     base_shop = _shop_key(base_product)
-    base_brand = _brand_tokens(base_product)
-    base_tokens = set(_norm_tokens(str(getattr(base_product, "title", "") or "")))
+    base_brand = brand_tokens(base_product)
+    base_tokens = set(norm_tokens(str(getattr(base_product, "title", "") or "")))
 
     scored: list[tuple[int, str, Product]] = []
     for x in rows:
         cand_cat = _category_key(x)
         cand_shop = _shop_key(x)
-        cand_brand = _brand_tokens(x)
-        cand_tokens = set(_norm_tokens(str(getattr(x, "title", "") or "")))
+        cand_brand = brand_tokens(x)
+        cand_tokens = set(norm_tokens(str(getattr(x, "title", "") or "")))
 
-        same_cat = bool(base_cat and cand_cat and cand_cat == base_cat)
         same_shop = bool(base_shop and cand_shop and cand_shop == base_shop)
         same_brand = bool(base_brand and cand_brand and (base_brand & cand_brand))
+        same_cat = bool(base_cat and cand_cat and cand_cat == base_cat)
         token_overlap = base_tokens & cand_tokens
         same_use = len(token_overlap) >= 2 or (same_cat and len(token_overlap) >= 1)
 
-        if not (same_shop or same_brand or same_use):
+        if not (same_shop or same_brand or same_cat or same_use):
             continue
 
         score = 0
         if same_shop:
-            score += 5
+            score += 80
         if same_brand:
-            score += 5
+            score += 60
         if same_cat:
-            score += 4
-        score += min(len(token_overlap), 3) * 2
+            score += 45
+        if same_use:
+            score += 35
+        score += min(len(token_overlap), 5) * 8
+        score += min(_to_int(getattr(x, "sales_volume", None)), 10000) // 1000
 
-        match_reason = _same_reason_text(
+        reason = match_reason_text(
             same_shop=same_shop,
             same_brand=same_brand,
             same_cat=same_cat,
             same_use=same_use,
         )
-        scored.append((score, match_reason, x))
+        scored.append((score, reason, x))
 
     scored = sorted(
         scored,
@@ -1182,79 +1267,160 @@ def render_more_like_this_h5(
         reverse=True,
     )
 
-    picked: list[Product] = []
+    try:
+        max_cards = int(more_cfg.get("max_cards") or 6)
+    except Exception:
+        max_cards = 6
+
+    picked: list[tuple[str, Product]] = []
     seen_ids: set[int] = set()
     seen_titles: set[str] = set()
-    for _, match_reason, x in scored:
+    for _, reason, x in scored:
         pid = int(x.id)
         titlek = _title_key(x)
         if pid in seen_ids or titlek in seen_titles:
             continue
-        setattr(x, "_match_reason_text", match_reason)
-        picked.append(x)
+        picked.append((reason, x))
         seen_ids.add(pid)
         seen_titles.add(titlek)
-        if len(picked) >= 3:
+        if len(picked) >= max_cards:
             break
 
-    rows = picked
-
-    cards: list[str] = []
     scene_val = scene or "more_like_this"
     slot_base = _to_int(slot or 0)
 
-    for idx, x in enumerate(rows, 1):
-        title = html.escape(str(getattr(x, "title", "") or ""))
-        shop_name = html.escape(str(getattr(x, "shop_name", "") or ""))
-        shop_html = f'<div class="meta">店铺：{shop_name}</div>' if shop_name else ""
-        value_text = html.escape(_news_value_line(x))
-        price_text = html.escape(_format_price_line(x))
-        reason_text = html.escape(_recommend_reason_short(x))
-        match_prefix = html.escape(_copy_text("section_copy", "more_like_this_match_prefix", "匹配："))
-        match_reason = html.escape(str(getattr(x, "_match_reason_text", "") or _copy_text("match_reason_labels", "fallback", "相似用途")))
-        tags = _recommend_reason_tags(x)
-        badges_html = ""
-        if tags:
-            badges_html = '<div class="badges">' + "".join(f'<span class="badge">{html.escape(str(tag))}</span>' for tag in tags) + '</div>'
+    base_title = str(getattr(base_product, "title", "") or "")
+    base_img = image_url(base_product)
+    base_img_html = f'<img class="base-img" src="{c(base_img)}" alt="{c(base_title)}" />' if base_img else ""
+
+    header = f"""
+    <div class="card header-card">
+      {base_img_html}
+      <div>
+        <div class="eyebrow">{c(cfg_text("base_prefix"))}</div>
+        <div class="title">{c(base_title)}</div>
+        <div class="meta">{c(cfg_text("intro"))}</div>
+      </div>
+    </div>
+    """.strip()
+
+    cards: list[str] = []
+    for idx, pair in enumerate(picked, 1):
+        match_reason, x = pair
+        title = str(getattr(x, "title", "") or "")
+        shop = str(first_attr(x, "shop_name", "merchant_name", "vendor_name") or "")
+        category = str(first_attr(x, "category_name", "category", "cid_name") or "")
+        sales = num_text(first_attr(x, "sales_volume", "order_count_30d", "in_order_count_30_days", "monthly_sales"))
+        comments = num_text(first_attr(x, "comment_count", "comments_count", "review_count", "good_comments"))
+        good_rate = rate_text(first_attr(x, "good_comment_rate", "good_comments_share", "positive_rate", "good_rate"))
+
+        price_main, price_note = safe_price_line(x)
+        reason = _recommend_reason_short(x)
+
+        img = image_url(x)
+        img_html = f'<img class="product-img" src="{c(img)}" alt="{c(title)}" />' if img else ""
+
+        info_pairs = [
+            (label("sales"), sales),
+            (label("comments"), comments),
+            (label("good_rate"), good_rate),
+            (label("category"), category),
+            (label("shop"), shop),
+        ]
+        info_html = "".join(
+            f'<div class="kv"><span>{c(k)}</span><strong>{c(v)}</strong></div>'
+            for k, v in info_pairs
+            if str(v or "").strip()
+        )
 
         buy_link = _promotion_url(
             x,
-            wechat_openid=wechat_openid or "more_like_this_openid",
+            wechat_openid=wechat_openid,
             scene=scene_val,
             slot=slot_base + idx,
         )
+        detail_link = _detail_url(
+            x,
+            scene=scene_val,
+            slot=slot_base + idx,
+            wechat_openid=wechat_openid,
+        )
+
         cards.append(
             f"""
-            <div class="card">
-              <div class="title">{idx}. {title}</div>
-              <div class="match">{match_prefix}{match_reason}</div>
-              {shop_html}
-              <div class="price">{value_text}</div>
-              <div class="meta">{html.escape(_copy_text("section_copy", "h5_price_prefix", "到手参考："))}{price_text}</div>
-              {badges_html}
-              <div class="reason">{reason_text}</div>
-              <div class="actions">
-                <a class="btn btn-primary" href="{buy_link}">{html.escape(LABEL_BUY)}</a>
+            <div class="card product-card">
+              {img_html}
+              <div class="rank">{c(cfg_text("item_rank_prefix"))} {idx}</div>
+              <div class="title product-title">{c(title)}</div>
+              <div class="match"><strong>{c(label("match"))}：</strong>{c(match_reason)}</div>
+              <div class="pricebox">
+                <div class="price-main">{c(label("price"))}：{c(price_main)}</div>
+                <div class="price-sub">{c(price_note)}</div>
+              </div>
+              <div class="grid">{info_html}</div>
+              <div class="section-title">{c(label("reason"))}</div>
+              <div class="reason">{c(reason)}</div>
+              <div class="card-actions">
+                <a class="btn btn-primary" href="{c(buy_link)}">{c(label("buy"))}</a>
+                <a class="btn btn-secondary" href="{c(detail_link)}">{c(label("detail"))}</a>
               </div>
             </div>
             """.strip()
         )
 
-    intro = f"""
-    <div class="card">
-      <div class="title">{html.escape(_copy_text("section_copy", "more_like_this_title", "更多同类产品"))}</div>
-      <div class="meta">{html.escape(_copy_text("section_copy", "more_like_this_intro", "优先按同品牌 / 同用途 / 同类目补充 1-3 个更接近的商品；不够接近就不乱塞。"))}</div>
-    </div>
-    """.strip()
-
-    if rows:
-        body = intro + "\n" + "\n".join(cards)
+    if cards:
+        body = header + "\n" + "\n".join(cards)
     else:
-        empty_title = html.escape(_copy_text("section_copy", "more_like_this_empty_title", "当前商品池里还没有足够接近的同类商品。"))
-        empty_desc = html.escape(_copy_text("section_copy", "more_like_this_empty_desc", "宁可少推荐，也不乱塞不相关商品。"))
-        body = intro + "\n" + f'<div class="card"><div class="title">{empty_title}</div><div class="meta">{empty_desc}</div></div>'
+        body = header + "\n" + f"""
+        <div class="card">
+          <div class="title">{c(cfg_text("empty_title"))}</div>
+          <div class="meta">{c(cfg_text("empty_desc"))}</div>
+        </div>
+        """.strip()
 
-    return _html_shell(_copy_text("section_copy", "more_like_this_title", "更多同类产品"), body)
+    title = cfg_text("title")
+
+    return f"""<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>{c(title)}</title>
+  <style>
+    body{{margin:0;background:#f6f7fb;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;color:#0f172a;}}
+    .wrap{{max-width:760px;margin:0 auto;padding:14px 14px 32px;}}
+    .card{{background:#fff;border-radius:20px;padding:16px;box-shadow:0 8px 28px rgba(15,23,42,.07);margin-bottom:14px;}}
+    .header-card{{display:grid;grid-template-columns:88px 1fr;gap:12px;align-items:center;}}
+    .base-img{{width:88px;height:88px;border-radius:16px;object-fit:cover;background:#fff;}}
+    .eyebrow{{font-size:12px;color:#64748b;font-weight:800;margin-bottom:4px;}}
+    .title{{font-size:20px;font-weight:850;line-height:1.42;margin:0;letter-spacing:-.2px;}}
+    .meta{{margin-top:8px;color:#64748b;line-height:1.75;font-size:14px;}}
+    .product-img{{width:100%;border-radius:18px;background:#fff;object-fit:cover;display:block;margin-bottom:12px;}}
+    .rank{{display:inline-flex;margin-bottom:8px;padding:5px 9px;border-radius:999px;background:#eef2ff;color:#3730a3;font-size:12px;font-weight:850;}}
+    .product-title{{margin-bottom:10px;}}
+    .match{{background:#f8fafc;border-radius:14px;padding:10px;color:#334155;line-height:1.7;font-size:14px;}}
+    .pricebox{{margin-top:12px;padding:14px;border-radius:16px;background:#fff7ed;color:#9a3412;}}
+    .price-main{{font-size:18px;font-weight:900;line-height:1.5;}}
+    .price-sub{{margin-top:6px;font-size:13px;color:#9a3412;line-height:1.65;}}
+    .grid{{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px;}}
+    .kv{{background:#f8fafc;border-radius:14px;padding:10px;min-height:48px;}}
+    .kv span{{display:block;color:#64748b;font-size:12px;line-height:1.4;}}
+    .kv strong{{display:block;margin-top:4px;color:#0f172a;font-size:15px;line-height:1.4;word-break:break-word;}}
+    .section-title{{font-size:15px;font-weight:850;margin:14px 0 8px;}}
+    .reason{{color:#334155;line-height:1.85;font-size:15px;}}
+    .card-actions{{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px;}}
+    .btn{{display:block;text-align:center;padding:12px 14px;border-radius:14px;text-decoration:none;font-weight:850;font-size:14px;}}
+    .btn-primary{{background:#0f172a;color:#fff;flex:1 1 180px;}}
+    .btn-secondary{{background:#e2e8f0;color:#0f172a;flex:1 1 120px;}}
+    @media (max-width:420px){{.header-card{{grid-template-columns:76px 1fr;}}.base-img{{width:76px;height:76px;}}.grid{{grid-template-columns:1fr 1fr;gap:8px;}}.title{{font-size:18px;}}}}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    {body}
+  </div>
+</body>
+</html>"""
 
 # === today recommend news article builder start ===
 def _product_pic_url(product: Product) -> str:
