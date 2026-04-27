@@ -1,0 +1,46 @@
+{
+  "version": 1,
+  "note": "商品池流水线任务注册表。runner 只读取本配置决定可执行任务，不在 Python 中硬编码业务任务参数。",
+  "jobs": {
+    "bulk_expand_raw_pool": {
+      "enabled": true,
+      "risk_level": "jd_api_heavy",
+      "run_mode": "manual_or_timer",
+      "command": "systemd-run --unit=aideal-bulk-catalog-expand --property=User=deploy --property=Group=deploy /bin/bash /home/deploy/projects/aideal-cps/ops/systemd/run_bulk_catalog_expand.sh"
+    },
+    "build_commission_candidate_pool": {
+      "enabled": true,
+      "risk_level": "local_only",
+      "run_mode": "inline",
+      "command": "cd /home/deploy/projects/aideal-cps && PYTHONPATH=/home/deploy/projects/aideal-cps /home/deploy/projects/aideal-cps/venv/bin/python scripts/build_commission_candidate_pool.py"
+    },
+    "refresh_commission_candidate_short_links": {
+      "enabled": true,
+      "risk_level": "jd_api_rate_limited",
+      "run_mode": "systemd",
+      "command": "systemd-run --unit=aideal-commission-short-link-refresh --property=User=deploy --property=Group=deploy /bin/bash /home/deploy/projects/aideal-cps/ops/systemd/run_commission_candidate_short_link_refresh.sh"
+    },
+    "build_semi_recommend_pool": {
+      "enabled": true,
+      "risk_level": "local_only",
+      "run_mode": "inline",
+      "command": "cd /home/deploy/projects/aideal-cps && PYTHONPATH=/home/deploy/projects/aideal-cps /home/deploy/projects/aideal-cps/venv/bin/python scripts/build_semi_recommend_pool.py"
+    },
+    "refresh_semi_candidate_short_links": {
+      "enabled": true,
+      "risk_level": "jd_api_rate_limited",
+      "run_mode": "systemd",
+      "command": "systemd-run --unit=aideal-semi-pool-refresh --property=User=deploy --property=Group=deploy /bin/bash /home/deploy/projects/aideal-cps/ops/systemd/run_semi_pool_refresh.sh"
+    }
+  },
+  "runner": {
+    "default_dry_run": true,
+    "skip_actions": [
+      "commercial_readiness_hold",
+      "summary"
+    ],
+    "max_executable_jobs_per_run": 3,
+    "allow_heavy_jd_jobs": false,
+    "note": "默认 dry-run。正式 timer 初期不自动跑 heavy JD 扩池，只自动跑本地重建和限速补链。"
+  }
+}
