@@ -6,31 +6,38 @@
       "enabled": true,
       "risk_level": "jd_api_heavy",
       "run_mode": "manual_or_timer",
-      "command": "systemd-run --unit=aideal-bulk-catalog-expand --property=User=deploy --property=Group=deploy /bin/bash /home/deploy/projects/aideal-cps/ops/systemd/run_bulk_catalog_expand.sh"
+      "command": "systemd-run --unit=aideal-bulk-catalog-expand --property=User=deploy --property=Group=deploy /bin/bash /home/deploy/projects/aideal-cps/ops/systemd/run_bulk_catalog_expand.sh",
+      "async_barrier": false
     },
     "build_commission_candidate_pool": {
       "enabled": true,
       "risk_level": "local_only",
       "run_mode": "inline",
-      "command": "cd /home/deploy/projects/aideal-cps && PYTHONPATH=/home/deploy/projects/aideal-cps /home/deploy/projects/aideal-cps/venv/bin/python scripts/build_commission_candidate_pool.py"
+      "command": "cd /home/deploy/projects/aideal-cps && PYTHONPATH=/home/deploy/projects/aideal-cps /home/deploy/projects/aideal-cps/venv/bin/python scripts/build_commission_candidate_pool.py",
+      "async_barrier": false
     },
     "refresh_commission_candidate_short_links": {
       "enabled": true,
       "risk_level": "jd_api_rate_limited",
       "run_mode": "systemd",
-      "command": "systemd-run --unit=aideal-commission-short-link-refresh --property=User=deploy --property=Group=deploy /bin/bash /home/deploy/projects/aideal-cps/ops/systemd/run_commission_candidate_short_link_refresh.sh"
+      "command": "systemd-run --unit=aideal-commission-short-link-refresh --property=User=deploy --property=Group=deploy /bin/bash /home/deploy/projects/aideal-cps/ops/systemd/run_commission_candidate_short_link_refresh.sh",
+      "async_barrier": true,
+      "note": "该任务通过 systemd 异步启动；runner 正式执行时启动后应停止后续任务，等待下次调度基于新状态继续。"
     },
     "build_semi_recommend_pool": {
       "enabled": true,
       "risk_level": "local_only",
       "run_mode": "inline",
-      "command": "cd /home/deploy/projects/aideal-cps && PYTHONPATH=/home/deploy/projects/aideal-cps /home/deploy/projects/aideal-cps/venv/bin/python scripts/build_semi_recommend_pool.py"
+      "command": "cd /home/deploy/projects/aideal-cps && PYTHONPATH=/home/deploy/projects/aideal-cps /home/deploy/projects/aideal-cps/venv/bin/python scripts/build_semi_recommend_pool.py",
+      "async_barrier": false
     },
     "refresh_semi_candidate_short_links": {
       "enabled": true,
       "risk_level": "jd_api_rate_limited",
       "run_mode": "systemd",
-      "command": "systemd-run --unit=aideal-semi-pool-refresh --property=User=deploy --property=Group=deploy /bin/bash /home/deploy/projects/aideal-cps/ops/systemd/run_semi_pool_refresh.sh"
+      "command": "systemd-run --unit=aideal-semi-pool-refresh --property=User=deploy --property=Group=deploy /bin/bash /home/deploy/projects/aideal-cps/ops/systemd/run_semi_pool_refresh.sh",
+      "async_barrier": true,
+      "note": "该任务通过 systemd 异步启动；runner 正式执行时启动后应停止后续任务，等待下次调度基于新状态继续。"
     }
   },
   "runner": {
@@ -41,6 +48,6 @@
     ],
     "max_executable_jobs_per_run": 3,
     "allow_heavy_jd_jobs": false,
-    "note": "默认 dry-run。正式 timer 初期不自动跑 heavy JD 扩池，只自动跑本地重建和限速补链。"
+    "note": "默认 dry-run。正式执行时如遇 async_barrier=true 的 systemd 任务，启动该任务后停止后续动作，避免用旧数据继续重建。"
   }
 }

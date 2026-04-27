@@ -39,6 +39,8 @@ def build_execution_plan(plan: dict[str, Any], registry: dict[str, Any]) -> list
     jobs_cfg = registry.get("jobs", {})
 
     selected: list[dict[str, Any]] = []
+    selected_count = 0
+
     for action_item in plan.get("plan", []):
         action = str(action_item.get("action") or "").strip()
         if not action or action in skip_actions:
@@ -54,16 +56,16 @@ def build_execution_plan(plan: dict[str, Any], registry: dict[str, Any]) -> list
                 "action": action,
                 "decision": "skipped",
                 "reason": "heavy_jd_job_disabled_by_registry",
-                "risk_level": risk_level
+                "risk_level": risk_level,
             })
             continue
 
-        if len([x for x in selected if x.get("decision") == "selected"]) >= max_jobs:
+        if selected_count >= max_jobs:
             selected.append({
                 "action": action,
                 "decision": "skipped",
                 "reason": "max_executable_jobs_per_run_reached",
-                "risk_level": risk_level
+                "risk_level": risk_level,
             })
             continue
 
@@ -72,18 +74,30 @@ def build_execution_plan(plan: dict[str, Any], registry: dict[str, Any]) -> list
             "decision": "selected",
             "risk_level": risk_level,
             "run_mode": job.get("run_mode"),
-            "command": job.get("command")
+            "async_barrier": bool(job.get("async_barrier", False)),
+            "command": job.get("command"),
         })
+        selected_count += 1
 
     return selected
 
 
 def run_selected(execution_plan: list[dict[str, Any]], *, dry_run: bool) -> list[dict[str, Any]]:
     results: list[dict[str, Any]] = []
+    blocked_by_async: str | None = None
 
     for item in execution_plan:
         if item.get("decision") != "selected":
             results.append(item)
+            continue
+
+        if blocked_by_async:
+            results.append({
+                **item,
+                "decision": "deferred",
+                "status": "deferred_after_async_job",
+                "reason": f"wait_for_{blocked_by_async}_to_finish",
+            })
             continue
 
         command = str(item.get("command") or "").strip()
@@ -100,15 +114,21 @@ def run_selected(execution_plan: list[dict[str, Any]], *, dry_run: bool) -> list
             stderr=subprocess.STDOUT,
             timeout=120,
         )
-        results.append({
+
+        status = "success" if completed.returncode == 0 else "failed"
+        result = {
             **item,
-            "status": "success" if completed.returncode == 0 else "failed",
+            "status": status,
             "returncode": completed.returncode,
-            "output_tail": (completed.stdout or "")[-1200:]
-        })
+            "output_tail": (completed.stdout or "")[-1200:],
+        }
+        results.append(result)
 
         if completed.returncode != 0:
             break
+
+        if item.get("async_barrier"):
+            blocked_by_async = str(item.get("action") or "async_job")
 
     return results
 
@@ -125,9 +145,10 @@ def main() -> int:
     execution_plan = build_execution_plan(plan, registry)
     results = run_selected(execution_plan, dry_run=dry_run)
 
+    failed = any(x.get("status") == "failed" for x in results)
     payload = {
         "job": "catalog_pipeline_runner",
-        "status": "success" if all(x.get("status") != "failed" for x in results) else "failed",
+        "status": "failed" if failed else "success",
         "dry_run": dry_run,
         "updated_at": now_iso(),
         "plan_path": str(PLAN_PATH),
@@ -144,10 +165,12 @@ def main() -> int:
                 "action": x.get("action"),
                 "decision": x.get("decision"),
                 "status": x.get("status"),
-                "risk_level": x.get("risk_level")
+                "risk_level": x.get("risk_level"),
+                "async_barrier": x.get("async_barrier"),
+                "reason": x.get("reason"),
             }
             for x in results
-        ]
+        ],
     }
     print(json.dumps(compact, ensure_ascii=False, indent=2))
     return 0 if payload["status"] == "success" else 1
