@@ -147,6 +147,19 @@ def _is_commercial_proactive_candidate(product: Product) -> bool:
     if min_sales_volume > 0 and sales_volume < min_sales_volume:
         return False
 
+    require_positive_saving = bool(cfg.get("require_positive_saving", False) or cfg.get("require_visible_saving", False))
+    min_saved_amount = _to_float(cfg.get("min_saved_amount", 0))
+    min_saved_rate = _to_float(cfg.get("min_saved_rate", 0))
+    saved_amount = _saved_amount(product)
+    saved_rate = _saved_rate(product)
+
+    if require_positive_saving and saved_amount <= 0:
+        return False
+    if min_saved_amount > 0 and saved_amount < min_saved_amount:
+        return False
+    if min_saved_rate > 0 and saved_rate < min_saved_rate:
+        return False
+
     good_comments_share = _to_float(getattr(product, "good_comments_share", None))
     comment_count = _to_int(getattr(product, "comment_count", None))
     if min_good_comment_rate > 0 and good_comments_share > 0 and good_comments_share < min_good_comment_rate:
@@ -408,6 +421,20 @@ def _effective_price(product: Product) -> float:
 
 
 def _saved_amount(product: Product) -> float:
+    """Canonical saved amount for ranking and proactive quality gate.
+
+    Prefer the same purchase/basis price snapshot used by H5 display so that
+    recommendation quality, copy, and landing page do not disagree.
+    """
+    try:
+        snap = _price_snapshot_for_display(product)
+        basis = _to_float(snap.get("basis_price") or snap.get("official_price"))
+        purchase = _to_float(snap.get("purchase_price"))
+        if basis > 0 and purchase > 0 and purchase < basis:
+            return round(basis - purchase, 2)
+    except Exception:
+        pass
+
     price = _to_float(getattr(product, "price", None))
     effective = _effective_price(product)
     if price > 0 and effective > 0 and effective < price:
@@ -416,6 +443,15 @@ def _saved_amount(product: Product) -> float:
 
 
 def _saved_rate(product: Product) -> float:
+    try:
+        snap = _price_snapshot_for_display(product)
+        basis = _to_float(snap.get("basis_price") or snap.get("official_price"))
+        saved = _saved_amount(product)
+        if basis > 0:
+            return saved / basis
+    except Exception:
+        pass
+
     price = _to_float(getattr(product, "price", None))
     saved = _saved_amount(product)
     if price > 0:
