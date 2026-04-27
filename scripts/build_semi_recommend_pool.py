@@ -21,6 +21,7 @@ from app.models.product import Product
 DEFAULT_RULE_PATH = ROOT / "config" / "proactive_recommend_rules.json"
 DEFAULT_OUTPUT_PATH = ROOT / "run" / "semi_recommend_pool_candidates.json"
 DEFAULT_STATUS_PATH = ROOT / "run" / "semi_recommend_pool_status.json"
+DEFAULT_SEMI_RULE_PATH = ROOT / "config" / "semi_recommend_pool_rules.json"
 
 ROOT.joinpath("run").mkdir(exist_ok=True)
 ROOT.joinpath("logs").mkdir(exist_ok=True)
@@ -87,7 +88,7 @@ def saving_snapshot(p: Product, *, min_saved_amount: Decimal, min_saved_rate: De
     return ok, saved, rate
 
 
-def score_product(p: Product, saved: Decimal, saved_rate: Decimal) -> float:
+def score_product(p: Product, saved: Decimal, saved_rate: Decimal, semi_rules: dict[str, Any] | None = None) -> float:
     sales = int(p.sales_volume or 0)
     commission = float(D(p.estimated_commission) or Decimal("0"))
     comment_count = int(p.comment_count or 0)
@@ -101,6 +102,14 @@ def score_product(p: Product, saved: Decimal, saved_rate: Decimal) -> float:
     saved_rate_score = min(float(saved_rate), 0.8) * 45.0
     comment_score = math.log10(max(comment_count, 0) + 1) * 3.0
     good_share_score = max(0.0, good_share - 0.85) * 30.0 if good_share else 0.0
+
+    semi_rules = semi_rules or {}
+    commission_score = min(commission, 50.0) * float(semi_rules.get("commission_weight", 0.9))
+    sales_score = math.log10(max(sales, 0) + 1) * float(semi_rules.get("sales_weight", 14.0))
+    saved_score = min(float(saved), 120.0) * float(semi_rules.get("saved_amount_weight", 0.35))
+    saved_rate_score = min(float(saved_rate), 0.8) * float(semi_rules.get("saved_rate_weight", 45.0))
+    exact_bonus = float(semi_rules.get("exact_price_bonus", 8.0)) if bool(p.is_exact_discount and p.price_verified_at) else 0.0
+    short_bonus = float(semi_rules.get("short_url_bonus", 6.0)) if bool((p.short_url or "").strip()) else 0.0
 
     return round(
         sales_score
@@ -117,13 +126,18 @@ def score_product(p: Product, saved: Decimal, saved_rate: Decimal) -> float:
 
 def build_candidates(args: argparse.Namespace) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     rules = load_rules(Path(args.rules_path))
+    semi_rules = load_rules(Path(args.semi_rules_path)) if Path(args.semi_rules_path).exists() else {}
 
     exclude_title_keywords = [str(x).lower() for x in rules.get("exclude_title_keywords", [])]
     exclude_category_keywords = [str(x).lower() for x in rules.get("exclude_category_keywords", [])]
     exclude_shop_keywords = [str(x).lower() for x in rules.get("exclude_shop_keywords", [])]
 
+    allowed_semi_categories = [str(x).lower() for x in semi_rules.get("allowed_category_keywords", [])]
+    blocked_semi_categories = [str(x).lower() for x in semi_rules.get("blocked_category_keywords", [])]
+    blocked_semi_titles = [str(x).lower() for x in semi_rules.get("blocked_title_keywords", [])]
+
     min_effective_price = Decimal(str(rules.get("min_effective_price", 6)))
-    max_effective_price = Decimal(str(rules.get("max_effective_price", 2000)))
+    max_effective_price = Decimal(str(semi_rules.get("max_effective_price_stage1", rules.get("max_effective_price", 2000))))
     min_estimated_commission = Decimal(str(rules.get("min_estimated_commission", 0.08)))
     min_sales_volume = int(rules.get("min_sales_volume", 50))
     min_saved_amount = Decimal(str(rules.get("min_saved_amount", 2)))
@@ -162,11 +176,14 @@ def build_candidates(args: argparse.Namespace) -> tuple[list[dict[str, Any]], di
             commission = D(p.estimated_commission) or Decimal("0")
             sales = int(p.sales_volume or 0)
 
-            if contains_any(title, exclude_title_keywords):
+            if contains_any(title, exclude_title_keywords) or contains_any(title, blocked_semi_titles):
                 reject_counter["bad_title"] += 1
                 continue
-            if contains_any(category, exclude_category_keywords):
+            if contains_any(category, exclude_category_keywords) or contains_any(category, blocked_semi_categories):
                 reject_counter["bad_category"] += 1
+                continue
+            if allowed_semi_categories and not contains_any(category, allowed_semi_categories):
+                reject_counter["not_in_stage1_allowed_category"] += 1
                 continue
             if contains_any(shop, exclude_shop_keywords):
                 reject_counter["bad_shop"] += 1
@@ -202,7 +219,7 @@ def build_candidates(args: argparse.Namespace) -> tuple[list[dict[str, Any]], di
                 reject_counter["category_cap"] += 1
                 continue
 
-            score = score_product(p, saved, saved_rate)
+            score = score_product(p, saved, saved_rate, semi_rules=semi_rules)
             has_short = bool((p.short_url or "").strip())
 
             item = {
@@ -248,6 +265,8 @@ def build_candidates(args: argparse.Namespace) -> tuple[list[dict[str, Any]], di
             "status": "success",
             "updated_at": now_iso(),
             "rules_path": str(args.rules_path),
+            "semi_rules_path": str(args.semi_rules_path),
+            "semi_stage": semi_rules.get("stage"),
             "active_scanned": counters["active_scanned"],
             "candidate_count": len(candidates),
             "candidate_with_short_url": with_short,
@@ -267,6 +286,7 @@ def main() -> int:
     parser.add_argument("--rules-path", default=str(DEFAULT_RULE_PATH))
     parser.add_argument("--output-path", default=str(DEFAULT_OUTPUT_PATH))
     parser.add_argument("--status-path", default=str(DEFAULT_STATUS_PATH))
+    parser.add_argument("--semi-rules-path", default=str(DEFAULT_SEMI_RULE_PATH))
     parser.add_argument("--candidate-limit", type=int, default=5000)
     parser.add_argument("--scan-limit", type=int, default=0)
     parser.add_argument("--max-per-category", type=int, default=160)
