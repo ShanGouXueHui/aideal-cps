@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "bulk_catalog_expand": {
+    "short_link_on_ingest": {
+      "enabled": true,
+      "new_products_only": true,
+      "update_existing_missing_short_url": false,
+      "note": "bulk 扩池新增商品入库时尽量同时生成 short_url；历史缺口由专用补链 job 查漏补缺，避免 bulk 任务反复补历史短链。"
+    }
+  }
+}

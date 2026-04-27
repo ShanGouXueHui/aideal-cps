@@ -22,7 +22,7 @@ from app.core.db import SessionLocal
 from app.models.product import Product
 from app.services.catalog_refresh_config_service import load_catalog_refresh_rules
 from app.services.catalog_refresh_service import _product_payload_from_live_row
-from app.services.jd_live_search_service import _normalize_live_item, _pick_material_url
+from app.services.jd_live_search_service import _build_short_link, _normalize_live_item, _pick_material_url
 from app.services.jd_product_sync_service import upsert_product
 from app.services.jd_union_client import (
     JDUnionClient,
@@ -36,6 +36,7 @@ RUN_DIR.mkdir(exist_ok=True)
 LOG_DIR.mkdir(exist_ok=True)
 
 STATUS_PATH = RUN_DIR / "bulk_catalog_expand_status.json"
+INGEST_POLICY_PATH = ROOT / "config" / "catalog_ingest_policy.json"
 
 
 EXTRA_KEYWORDS = [
@@ -186,6 +187,24 @@ def _build_tasks(
     return tasks
 
 
+
+def _load_ingest_policy(path: Path = INGEST_POLICY_PATH) -> dict[str, Any]:
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+        return data if isinstance(data, dict) else {}
+    except FileNotFoundError:
+        return {}
+    except Exception as exc:
+        print(json.dumps({"event": "ingest_policy_load_failed", "path": str(path), "error": repr(exc)[:300]}, ensure_ascii=False), flush=True)
+        return {}
+
+
+def _bulk_short_link_policy(args: Any) -> dict[str, Any]:
+    raw = _load_ingest_policy(Path(getattr(args, "ingest_policy_path", INGEST_POLICY_PATH)))
+    bulk = raw.get("bulk_catalog_expand") if isinstance(raw.get("bulk_catalog_expand"), dict) else {}
+    policy = bulk.get("short_link_on_ingest") if isinstance(bulk.get("short_link_on_ingest"), dict) else {}
+    return policy
+
 def _count_products() -> int:
     db = SessionLocal()
     try:
@@ -194,7 +213,7 @@ def _count_products() -> int:
         db.close()
 
 
-def _safe_upsert_raw_candidate(db, item: dict[str, Any], *, task: FetchTask, dry_run: bool) -> str:
+def _safe_upsert_raw_candidate(db, item: dict[str, Any], *, task: FetchTask, dry_run: bool, client: JDUnionClient | None = None, short_link_policy: dict[str, Any] | None = None) -> str:
     material_url = _pick_material_url(item)
     live_row = _normalize_live_item(item, short_url=None)
 
@@ -212,6 +231,7 @@ def _safe_upsert_raw_candidate(db, item: dict[str, Any], *, task: FetchTask, dry
     payload["jd_sku_id"] = jd_sku_id
     payload["product_url"] = material_url or payload.get("product_url")
     payload["material_url"] = material_url or payload.get("material_url")
+    # short_url 不再硬编码丢弃；是否生成/保存由 config/catalog_ingest_policy.json 控制。
     payload.pop("short_url", None)
 
     tags = str(payload.get("ai_tags") or "")
@@ -237,6 +257,21 @@ def _safe_upsert_raw_candidate(db, item: dict[str, Any], *, task: FetchTask, dry
             payload.pop("allow_proactive_push", None)
         if bool(getattr(existing, "allow_partner_share", False)):
             payload.pop("allow_partner_share", None)
+
+
+    short_policy = short_link_policy or {}
+    should_build_short = False
+    if bool(short_policy.get("enabled", False)) and material_url and not dry_run:
+        if existing is None and bool(short_policy.get("new_products_only", True)):
+            should_build_short = True
+        elif existing is not None and bool(short_policy.get("update_existing_missing_short_url", False)) and not getattr(existing, "short_url", None):
+            should_build_short = True
+
+    if should_build_short and client is not None:
+        generated_short_url = _build_short_link(client, material_url)
+        if generated_short_url:
+            payload["short_url"] = generated_short_url
+            payload["product_url"] = generated_short_url
 
     if dry_run:
         return "dry_run"
@@ -282,6 +317,7 @@ def _run_task(task: FetchTask, args, stop_event: threading.Event) -> dict[str, A
             time.sleep(args.request_sleep_seconds * random.random())
 
         items = _fetch_items(client, task)
+        short_link_policy = _bulk_short_link_policy(args)
 
         inserted = 0
         updated = 0
@@ -292,7 +328,7 @@ def _run_task(task: FetchTask, args, stop_event: threading.Event) -> dict[str, A
             if stop_event.is_set():
                 break
             try:
-                action = _safe_upsert_raw_candidate(db, item, task=task, dry_run=args.dry_run)
+                action = _safe_upsert_raw_candidate(db, item, task=task, dry_run=args.dry_run, client=client, short_link_policy=short_link_policy)
                 if action == "inserted":
                     inserted += 1
                 elif action == "updated":
@@ -354,6 +390,7 @@ def main() -> int:
     parser.add_argument("--include-elite", action="store_true")
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--progress-every", type=int, default=50)
+    parser.add_argument("--ingest-policy-path", default=str(INGEST_POLICY_PATH))
     args = parser.parse_args()
 
     args.workers = max(1, min(int(args.workers), 24))
