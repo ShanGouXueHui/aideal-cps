@@ -1,0 +1,80 @@
+{
+  "enabled": true,
+  "stage": "broad_commission_candidate_pool",
+  "note": "大佣金候选池用于接近 raw 池规模地沉淀可经营商品；不等于微信主动推荐池。主推荐池仍由更严格的 semi/main gate 控制。",
+  "hard_block": {
+    "category_keywords": [
+      "白酒", "红酒", "葡萄酒", "啤酒", "洋酒", "威士忌", "干红葡萄酒",
+      "成人用品", "情趣", "情趣内衣",
+      "医用", "医疗", "皮肤用药", "宠物保健用品", "农药", "兽药",
+      "维修", "上门服务", "本地生活", "商务服务",
+      "防身", "安防防身", "刀剪菜刀", "五金工具危险品",
+      "投资", "金融", "理财"
+    ],
+    "title_keywords": [
+      "处方", "药用", "治疗", "诊疗", "医院", "医用",
+      "成人用品", "情趣", "性感", "诱惑", "SM",
+      "防狼", "电击", "甩棍", "刀具",
+      "农药", "杀虫", "兽药",
+      "维修", "上门服务", "联系客服", "咨询客服",
+      "拉新", "新人到手0.01", "试用装", "体验装", "随机发",
+      "股票", "基金", "投资", "理财"
+    ],
+    "shop_keywords": [
+      "服务旗舰店"
+    ]
+  },
+  "managed_category": {
+    "note": "可经营但不进入首批主动推荐，需要独立类目策略、价格校验和转化验证。",
+    "category_keywords": [
+      "香水", "香氛", "精油",
+      "空气净化器", "净水器", "洗衣机", "浴霸", "智能马桶", "浴室柜", "水槽", "床垫", "电子锁",
+      "蓝牙/无线耳机", "有线耳机", "游戏耳机",
+      "光学眼镜", "镜片镜架",
+      "蛋白粉", "维生素", "营养补充", "保健"
+    ],
+    "title_keywords": [
+      "华强北", "airpods", "AirPods", "适配苹果", "原装适配",
+      "蛋白粉", "维生素", "保健", "营养补充",
+      "按摩", "理疗"
+    ]
+  },
+  "safe_core_category_keywords": [
+    "抽纸", "卷纸", "纸巾", "厨房纸", "湿厕纸", "湿巾", "棉柔巾", "洗脸巾",
+    "洗衣液", "洗衣凝珠", "洗衣粉", "柔顺剂", "洗洁精", "洗碗", "垃圾袋", "保鲜",
+    "牙膏", "牙刷", "漱口水", "牙线", "洗发", "护发", "沐浴露", "洗手液", "洁面", "护手霜", "润唇膏",
+    "卫生巾", "纸尿裤", "拉拉裤", "奶瓶清洗", "婴童", "宝宝", "儿童",
+    "猫砂", "猫粮", "狗粮", "宠物湿巾",
+    "大米", "面粉", "面条", "方便面", "牛奶", "酸奶", "咖啡", "茶饮料", "绿茶", "红茶", "乌龙茶",
+    "水杯", "保温杯", "玻璃杯", "塑料杯", "收纳"
+  ],
+  "tier_policy": {
+    "max_effective_price_main_ready": 399.0,
+    "max_effective_price_broad": 2000.0,
+    "min_effective_price": 3.0,
+    "min_estimated_commission": 0.03,
+    "main_ready_min_estimated_commission": 0.08,
+    "main_ready_min_sales_volume": 50,
+    "broad_min_sales_volume": 0,
+    "main_ready_require_positive_saving": true,
+    "broad_require_positive_saving": false,
+    "min_saved_amount": 2.0,
+    "min_saved_rate": 0.03
+  },
+  "score_weights": {
+    "sales_weight": 10.0,
+    "commission_weight": 1.2,
+    "saved_amount_weight": 0.25,
+    "saved_rate_weight": 30.0,
+    "short_url_bonus": 10.0,
+    "exact_price_bonus": 8.0,
+    "safe_core_bonus": 12.0,
+    "managed_penalty": -25.0,
+    "missing_short_url_penalty": -6.0
+  },
+  "output": {
+    "candidate_path": "run/commission_candidate_pool.json",
+    "status_path": "run/commission_candidate_pool_status.json",
+    "max_output": 100000
+  }
+}
