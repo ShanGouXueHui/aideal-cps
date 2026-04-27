@@ -20,7 +20,7 @@
       "enabled": true,
       "risk_level": "jd_api_rate_limited",
       "run_mode": "systemd",
-      "command": "systemd-run --unit=aideal-commission-short-link-refresh --property=User=deploy --property=Group=deploy /bin/bash /home/deploy/projects/aideal-cps/ops/systemd/run_commission_candidate_short_link_refresh.sh",
+      "command": "sudo -n systemd-run --unit=aideal-commission-short-link-refresh --property=User=deploy --property=Group=deploy /bin/bash /home/deploy/projects/aideal-cps/ops/systemd/run_commission_candidate_short_link_refresh.sh",
       "async_barrier": true,
       "note": "该任务通过 systemd 异步启动；runner 正式执行时启动后应停止后续任务，等待下次调度基于新状态继续。"
     },
@@ -35,7 +35,7 @@
       "enabled": true,
       "risk_level": "jd_api_rate_limited",
       "run_mode": "systemd",
-      "command": "systemd-run --unit=aideal-semi-pool-refresh --property=User=deploy --property=Group=deploy /bin/bash /home/deploy/projects/aideal-cps/ops/systemd/run_semi_pool_refresh.sh",
+      "command": "sudo -n systemd-run --unit=aideal-semi-pool-refresh --property=User=deploy --property=Group=deploy /bin/bash /home/deploy/projects/aideal-cps/ops/systemd/run_semi_pool_refresh.sh",
       "async_barrier": true,
       "note": "该任务通过 systemd 异步启动；runner 正式执行时启动后应停止后续任务，等待下次调度基于新状态继续。"
     }
@@ -48,6 +48,7 @@
     ],
     "max_executable_jobs_per_run": 3,
     "allow_heavy_jd_jobs": false,
-    "note": "默认 dry-run。正式执行时如遇 async_barrier=true 的 systemd 任务，启动该任务后停止后续动作，避免用旧数据继续重建。"
+    "note": "默认 dry-run。正式执行时如遇 async_barrier=true 的 systemd 任务，启动该任务后停止后续动作，避免用旧数据继续重建。",
+    "sudo_note": "Manual execution should run sudo -v first. systemd commands use sudo -n to fail fast instead of blocking on polkit authentication."
   }
 }
