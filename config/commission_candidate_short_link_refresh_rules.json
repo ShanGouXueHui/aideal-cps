@@ -1,0 +1,18 @@
+{
+  "enabled": true,
+  "note": "大佣金候选池短链补齐任务。只补高价值候选层，不对 raw/broad 全量转链，避免压爆 JD 接口。",
+  "input_path": "run/commission_candidate_pool.json",
+  "status_path": "run/commission_candidate_short_link_refresh_status.json",
+  "log_path": "logs/commission_candidate_short_link_refresh.log",
+  "default_limit": 3000,
+  "request_sleep_seconds": 0.25,
+  "allowed_tiers": [
+    "semi_ready_missing_short_url"
+  ],
+  "fallback_allowed_tiers": [
+    "broad_candidate"
+  ],
+  "max_failures_before_abort": 100,
+  "rebuild_pool_before_refresh": true,
+  "rebuild_pool_after_refresh": true
+}
