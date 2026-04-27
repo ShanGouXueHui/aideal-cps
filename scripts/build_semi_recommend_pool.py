@@ -289,8 +289,17 @@ def main() -> int:
     parser.add_argument("--semi-rules-path", default=str(DEFAULT_SEMI_RULE_PATH))
     parser.add_argument("--candidate-limit", type=int, default=5000)
     parser.add_argument("--scan-limit", type=int, default=0)
-    parser.add_argument("--max-per-category", type=int, default=160)
+    parser.add_argument("--max-per-category", type=int, default=0)
     args = parser.parse_args()
+
+    # max_per_category 是业务策略参数；默认由 config/semi_recommend_pool_rules.json 控制。
+    # 命令行只作为临时覆盖，不作为代码常量。
+    try:
+        semi_rules_for_defaults = load_rules(Path(args.semi_rules_path)) if Path(args.semi_rules_path).exists() else {}
+    except Exception:
+        semi_rules_for_defaults = {}
+    if int(args.max_per_category or 0) <= 0:
+        args.max_per_category = int(semi_rules_for_defaults.get("max_per_category_stage1", 160))
 
     candidates, status = build_candidates(args)
 
