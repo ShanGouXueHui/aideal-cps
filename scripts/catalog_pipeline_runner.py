@@ -103,6 +103,8 @@ def run_selected(execution_plan: list[dict[str, Any]], *, dry_run: bool) -> list
         command = str(item.get("command") or "").strip()
         if dry_run:
             results.append({**item, "status": "dry_run"})
+            if item.get("async_barrier"):
+                blocked_by_async = str(item.get("action") or "async_job")
             continue
 
         completed = subprocess.run(
