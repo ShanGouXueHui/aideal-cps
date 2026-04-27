@@ -1,0 +1,41 @@
+{
+  "version": 1,
+  "note": "AIdeal CPS 商品池自动化调度策略。只放业务阈值和调度参数，不放密钥，不在 Python 中硬编码业务阈值。",
+  "pool_targets": {
+    "raw_total_target": 1000000,
+    "candidate_total_target": 800000,
+    "recommend_ready_target": 500000
+  },
+  "stage_thresholds": {
+    "min_raw_products_before_candidate_build": 100000,
+    "min_candidate_pool_size": 50000,
+    "min_main_ready": 1000,
+    "min_semi_ready": 10000,
+    "min_short_url_coverage_for_commercial_smoke": 10000,
+    "short_link_backfill_trigger_missing": 1000
+  },
+  "batch_limits": {
+    "bulk_expand_target_increment": 100000,
+    "bulk_expand_max_requests": 14000,
+    "bulk_expand_workers": 10,
+    "bulk_expand_request_sleep_seconds": 0.1,
+    "commission_short_link_limit_per_run": 3000,
+    "semi_short_link_limit_per_run": 1000
+  },
+  "enabled_jobs": {
+    "bulk_expand_when_raw_below_target": true,
+    "build_commission_candidate_pool": true,
+    "refresh_commission_candidate_short_links": true,
+    "build_semi_recommend_pool": true,
+    "refresh_semi_candidate_short_links": true,
+    "free_llm_health_probe": true,
+    "catalog_refresh": true
+  },
+  "safety": {
+    "planner_is_read_only": true,
+    "never_call_jd_in_planner": true,
+    "do_not_touch_wechat_callback": true,
+    "require_flock_for_mutating_jobs": true,
+    "require_deploy_user_for_runtime_files": true
+  }
+}
