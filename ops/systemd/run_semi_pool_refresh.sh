@@ -1,6 +1,14 @@
 #!/usr/bin/env bash
 cd /home/deploy/projects/aideal-cps || exit 1
 
+
+REQUIRED_USER="${SEMI_RUN_USER:-deploy}"
+CURRENT_USER="$(id -un)"
+if [ "$CURRENT_USER" != "$REQUIRED_USER" ]; then
+  echo "ERROR: run_semi_pool_refresh.sh must run as ${REQUIRED_USER}, current=${CURRENT_USER}. Use systemd-run --uid=${REQUIRED_USER} --gid=${REQUIRED_USER}."
+  exit 1
+fi
+
 PY_BIN="/home/deploy/projects/aideal-cps/venv/bin/python"
 LOG_FILE="/home/deploy/projects/aideal-cps/logs/semi_pool_refresh.log"
 LOCK_FILE="/tmp/aideal_semi_pool_refresh.lock"
